@@ -42,8 +42,8 @@ team-ai CLI
 
 | 能力 | 所有者 / 位置 |
 | --- | --- |
-| Common | 用户级 `common@company-ai` Plugin |
-| Role | 用户级 `role-<role>@company-ai` Plugin |
+| Common | 用户级 `common@teamai` Plugin |
+| Role | 用户级 `role-<role>@teamai` Plugin |
 | Product | 由业务 Repo settings 声明启用的 `product-*` Plugin |
 | Project | 真实业务 Repo 中的原生 `.github/*` |
 | Machine state | `~/.team-ai/` |
@@ -110,7 +110,7 @@ team-ai init --role api
 
 1. 检查 Copilot CLI；
 2. 通过原生 `copilot plugins` 命令注册公司 Marketplace；
-3. 收敛 `common@company-ai` 和当前 `role-*` Plugin；
+3. 收敛 `common@teamai` 和当前 `role-*` Plugin；
 4. 将 Role 与 Team AI 自己拥有的 Plugin 记录到 `~/.team-ai/config.yaml`；
 5. 如果当前位于 Git Repo 中，识别 workspace 与 machine partition；
 6. 可选地验证并通过 repository settings 声明 `product-*` Plugin。
@@ -151,12 +151,12 @@ team-ai role set design
 ```yaml
 version: 1
 marketplace:
-  name: company-ai
+  name: teamai
   repository: teamai-vault/teamai-marketplace
 role: api
 managedPlugins:
-  - common@company-ai
-  - role-api@company-ai
+  - common@teamai
+  - role-api@teamai
 ```
 
 `managedPlugins` 是明确的 ownership boundary：只有 Team AI 自己安装/拥有的 Plugin，才允许由 CLI enable、update 或 disable。

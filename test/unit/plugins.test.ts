@@ -3,16 +3,16 @@ import { desiredUserPlugins } from "../../src/copilot/plugins.js";
 
 describe("desired plugin resolution", () => {
   test("resolves common plus selected role", () => {
-    expect(desiredUserPlugins("api", "company-ai")).toEqual([
-      "common@company-ai",
-      "role-api@company-ai",
+    expect(desiredUserPlugins("api", "teamai")).toEqual([
+      "common@teamai",
+      "role-api@teamai",
     ]);
   });
 
   test("supports the design role", () => {
-    expect(desiredUserPlugins("design", "company-ai")).toEqual([
-      "common@company-ai",
-      "role-design@company-ai",
+    expect(desiredUserPlugins("design", "teamai")).toEqual([
+      "common@teamai",
+      "role-design@teamai",
     ]);
   });
 });

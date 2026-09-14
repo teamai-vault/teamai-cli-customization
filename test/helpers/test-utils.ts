@@ -26,7 +26,7 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
     marketplaces: initial?.marketplaces ?? [],
     plugins: initial?.plugins ?? [],
     catalog: initial?.catalog ?? {
-      "company-ai": [
+      teamai: [
         { name: "common", version: "0.1.0" },
         { name: "role-api", version: "0.1.0" },
         { name: "role-ios", version: "0.1.0" },

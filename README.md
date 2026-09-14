@@ -42,8 +42,8 @@ The ownership model is intentionally small:
 
 | Capability | Owner / location |
 | --- | --- |
-| Common | `common@company-ai` user plugin |
-| Role | `role-<role>@company-ai` user plugin |
+| Common | `common@teamai` user plugin |
+| Role | `role-<role>@teamai` user plugin |
 | Product | `product-*` plugin enabled by repository settings |
 | Project | Native `.github/*` files in the real business repository |
 | Machine state | `~/.team-ai/` |
@@ -110,7 +110,7 @@ It:
 
 1. verifies the Copilot CLI;
 2. registers the company marketplace through native `copilot plugins` commands;
-3. converges `common@company-ai` plus the selected `role-*` plugin;
+3. converges `common@teamai` plus the selected `role-*` plugin;
 4. stores the selected role and Team AI-owned plugins in `~/.team-ai/config.yaml`;
 5. if inside a Git repository, detects the workspace and machine partition;
 6. optionally validates and declares a `product-*` plugin via repository settings.
@@ -151,12 +151,12 @@ Example:
 ```yaml
 version: 1
 marketplace:
-  name: company-ai
+  name: teamai
   repository: teamai-vault/teamai-marketplace
 role: api
 managedPlugins:
-  - common@company-ai
-  - role-api@company-ai
+  - common@teamai
+  - role-api@teamai
 ```
 
 `managedPlugins` is an ownership boundary. `team-ai` only enables, updates, or disables plugins that it installed/owns.

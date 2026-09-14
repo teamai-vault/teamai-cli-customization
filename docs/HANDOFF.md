@@ -15,7 +15,7 @@ Shared capabilities
   -> native GitHub Copilot Marketplace
 
 Common
-  -> common@company-ai
+  -> common@teamai
 
 Role
   -> role-api / role-ios / role-aos / role-qa / role-design
@@ -90,6 +90,22 @@ All write commands support `--dry-run`.
 
 These findings came from GitHub Copilot CLI `1.0.83` on Windows and should be preserved because they affect future maintenance.
 
+### 3.0 Marketplace identity was normalized to `teamai`
+
+The early architecture draft used `company-ai` as a generic placeholder marketplace name. Before team rollout, the real Marketplace identity was intentionally normalized to:
+
+```text
+teamai
+```
+
+The canonical GitHub repository remains:
+
+```text
+teamai-vault/teamai-marketplace
+```
+
+Do not reintroduce `company-ai`, `Company AI`, or example organization identifiers such as `acme/*` into production defaults or documentation. Test-only repository identities should be explicitly named `test-org/*`.
+
 ### 3.1 Marketplace manifest locations
 
 Both of these layouts were tested with a real local Marketplace and succeeded with `marketplace add` + `browse`:
@@ -143,7 +159,7 @@ After adding a local Marketplace, `copilot plugins list --kind plugin --json` ex
 
 ```json
 {
-  "source": "live-marketplace:company-ai",
+  "source": "live-marketplace:teamai",
   "enabled": false
 }
 ```
@@ -164,11 +180,11 @@ Example:
 
 ```yaml
 managedPlugins:
-  - common@company-ai
-  - role-api@company-ai
+  - common@teamai
+  - role-api@teamai
 ```
 
-If `role-api@company-ai` already exists as a normal user-owned plugin before Team AI initialization, Team AI preserves its enabled/version state and emits a warning instead of taking ownership.
+If `role-api@teamai` already exists as a normal user-owned plugin before Team AI initialization, Team AI preserves its enabled/version state and emits a warning instead of taking ownership.
 
 ## 5. Project and worktree behavior
 
@@ -280,15 +296,15 @@ team-ai doctor              PASS, exit 0
 Observed final native state:
 
 ```text
-common@company-ai   enabled
-role-api@company-ai enabled
-role-design         disabled after role switch
-other role plugins  disabled live Marketplace projections
+common@teamai   enabled
+role-api@teamai enabled
+role-design@teamai disabled after role switch
+other role plugins disabled live Marketplace projections
 ```
 
 The temporary profile/repository was removed after the test.
 
-The same CLI flow was then repeated against the **pushed GitHub Marketplace source** with no `TEAM_AI_MARKETPLACE_SOURCE` override, so the default `teamai-vault/teamai-marketplace` path was exercised end-to-end:
+After the Marketplace identity was renamed from the early placeholder `company-ai` to `teamai`, the same CLI flow was re-run against the **pushed GitHub Marketplace source** with no `TEAM_AI_MARKETPLACE_SOURCE` override. This exercised the default `teamai-vault/teamai-marketplace` path and the final `teamai` identity end-to-end:
 
 ```text
 team-ai init --role design  PASS
@@ -300,9 +316,9 @@ team-ai doctor              PASS, exit 0
 Final remote-backed native state:
 
 ```text
-common@company-ai      enabled, source=marketplace:company-ai
-role-api@company-ai    enabled, source=marketplace:company-ai
-role-design@company-ai disabled after role switch
+common@teamai      enabled, source=marketplace:teamai
+role-api@teamai    enabled, source=marketplace:teamai
+role-design@teamai disabled after role switch
 ```
 
 The remote E2E also used an isolated temporary profile/repository and cleaned the temporary directory afterward.
@@ -315,26 +331,28 @@ Completed against the pushed GitHub repository:
 
 ```text
 copilot plugins marketplace add teamai-vault/teamai-marketplace
-copilot plugins marketplace browse company-ai
-copilot plugins install common@company-ai
-copilot plugins install role-design@company-ai
+copilot plugins marketplace browse teamai
+copilot plugins install common@teamai
+copilot plugins install role-design@teamai
 ```
 
 All commands succeeded. Remote installed plugin rows use:
 
 ```text
-source: marketplace:company-ai
+source: marketplace:teamai
 ```
 
 which is supported by the current CLI adapter.
 
-On this Windows machine, individual `copilot plugins remove <plugin>@company-ai` cleanup returned `os error 5` (access denied), while the documented marketplace cleanup path succeeded:
+During the earlier pre-rename Windows validation, individual plugin removal returned `os error 5` (access denied), while the documented forced Marketplace cleanup path succeeded. This appeared to be a Copilot CLI/filesystem behavior rather than an identifier-specific issue. The post-rename E2E used an isolated profile and removed the temporary profile instead of claiming that this cleanup edge case was re-tested.
+
+The successful cleanup path observed in that earlier validation was:
 
 ```text
-copilot plugins marketplace remove company-ai --force
+copilot plugins marketplace remove teamai --force
 ```
 
-After the forced removal, `company-ai` was absent and `copilot plugins list --kind plugin --json` returned no remaining test plugins.
+After the forced removal, `teamai` was absent and `copilot plugins list --kind plugin --json` returned no remaining test plugins.
 
 ### 8.2 Marketplace catalog JSON does not currently expose versions
 

@@ -22,7 +22,7 @@ export function createDefaultConfig(marketplaceSource?: string): TeamAiConfig {
   return {
     version: 1,
     marketplace: {
-      name: "company-ai",
+      name: "teamai",
       repository: marketplaceSource ?? "teamai-vault/teamai-marketplace",
     },
     managedPlugins: [],

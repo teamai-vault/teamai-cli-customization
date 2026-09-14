@@ -24,13 +24,13 @@ describe("CLI integration with fake Copilot executable", () => {
       ],
     });
     const first = capture();
-    const base = { cwd: repo, homeDir: home, copilot: fake.client, out: first.out, err: first.err, env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "acme/teamai-marketplace" } };
+    const base = { cwd: repo, homeDir: home, copilot: fake.client, out: first.out, err: first.err, env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "test-org/teamai-marketplace" } };
 
     expect(await runCli(["init", "--role", "api"], base)).toBe(0);
     expect(first.stderr).toEqual([]);
     const config = await readGlobalConfig(home);
     expect(config?.role).toBe("api");
-    expect(config?.managedPlugins).toEqual(["common@company-ai", "role-api@company-ai"]);
+    expect(config?.managedPlugins).toEqual(["common@teamai", "role-api@teamai"]);
 
     const identity = await detectProjectIdentity(repo);
     const statePath = path.join(partitionPath(identity!.projectAnchor, home), "state.json");
@@ -44,13 +44,13 @@ describe("CLI integration with fake Copilot executable", () => {
     const reinitRole = capture();
     expect(await runCli(["init", "--role", "ios"], { ...base, out: reinitRole.out, err: reinitRole.err })).toBe(0);
     const afterReinit = await fake.readState();
-    expect(afterReinit.plugins.find((item) => item.name === "role-api" && item.marketplace === "company-ai")?.enabled).toBe(false);
-    expect(afterReinit.plugins.find((item) => item.name === "role-ios" && item.marketplace === "company-ai")?.enabled).toBe(true);
+    expect(afterReinit.plugins.find((item) => item.name === "role-api" && item.marketplace === "teamai")?.enabled).toBe(false);
+    expect(afterReinit.plugins.find((item) => item.name === "role-ios" && item.marketplace === "teamai")?.enabled).toBe(true);
 
     const switched = capture();
     expect(await runCli(["role", "set", "qa"], { ...base, out: switched.out, err: switched.err })).toBe(0);
     const afterSwitch = await fake.readState();
-    expect(afterSwitch.plugins.find((item) => item.name === "role-api" && item.marketplace === "company-ai")?.enabled).toBe(false);
+    expect(afterSwitch.plugins.find((item) => item.name === "role-api" && item.marketplace === "teamai")?.enabled).toBe(false);
     expect(afterSwitch.plugins.find((item) => item.name === "role-qa")?.enabled).toBe(true);
     expect(afterSwitch.plugins.find((item) => item.name === "personal-tool")?.enabled).toBe(true);
     expect(afterSwitch.plugins.find((item) => item.name === "role-api" && item.marketplace === "other")?.enabled).toBe(true);
@@ -65,11 +65,11 @@ describe("CLI integration with fake Copilot executable", () => {
 
     const status = capture();
     expect(await runCli(["status"], { ...base, out: status.out, err: status.err })).toBe(0);
-    expect(status.stdout.some((line) => line.includes("role-qa@company-ai: enabled"))).toBe(true);
+    expect(status.stdout.some((line) => line.includes("role-qa@teamai: enabled"))).toBe(true);
 
     const doctor = capture();
     expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(0);
-    expect(doctor.stdout.some((line) => line.includes("✓ role-qa@company-ai is enabled."))).toBe(true);
+    expect(doctor.stdout.some((line) => line.includes("✓ role-qa@teamai is enabled."))).toBe(true);
   }, 30_000);
 
   test("dry-run previews init without changing Copilot, config, or project machine state", async () => {
@@ -85,7 +85,7 @@ describe("CLI integration with fake Copilot executable", () => {
       copilot: fake.client,
       out: output.out,
       err: output.err,
-      env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "acme/teamai-marketplace" },
+      env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "test-org/teamai-marketplace" },
     })).toBe(0);
 
     expect(await fake.readState()).toEqual(before);
@@ -98,8 +98,8 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-owned-home-");
     const fake = await createFakeCopilot({
-      marketplaces: [{ name: "company-ai", source: "user-added" }],
-      plugins: [{ name: "role-api", marketplace: "company-ai", version: "0.0.1", enabled: false, source: "marketplace:company-ai" }],
+      marketplaces: [{ name: "teamai", source: "user-added" }],
+      plugins: [{ name: "role-api", marketplace: "teamai", version: "0.0.1", enabled: false, source: "marketplace:teamai" }],
     });
     const output = capture();
 
@@ -115,7 +115,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const state = await fake.readState();
     expect(state.plugins.find((item) => item.name === "role-api")).toMatchObject({ version: "0.0.1", enabled: false });
     const config = await readGlobalConfig(home);
-    expect(config?.managedPlugins).toEqual(["common@company-ai"]);
+    expect(config?.managedPlugins).toEqual(["common@teamai"]);
     expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
   }, 10_000);
 
@@ -123,10 +123,10 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-live-marketplace-home-");
     const fake = await createFakeCopilot({
-      marketplaces: [{ name: "company-ai", source: "Local: test-marketplace" }],
+      marketplaces: [{ name: "teamai", source: "Local: test-marketplace" }],
       plugins: [
-        { name: "common", marketplace: "company-ai", version: "0.1.0", enabled: false, source: "live-marketplace:company-ai" },
-        { name: "role-design", marketplace: "company-ai", version: "0.1.0", enabled: false, source: "live-marketplace:company-ai" },
+        { name: "common", marketplace: "teamai", version: "0.1.0", enabled: false, source: "live-marketplace:teamai" },
+        { name: "role-design", marketplace: "teamai", version: "0.1.0", enabled: false, source: "live-marketplace:teamai" },
       ],
     });
     const output = capture();
@@ -144,7 +144,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(state.plugins.find((item) => item.name === "common")?.enabled).toBe(true);
     expect(state.plugins.find((item) => item.name === "role-design")?.enabled).toBe(true);
     const config = await readGlobalConfig(home);
-    expect(config?.managedPlugins).toEqual(["common@company-ai", "role-design@company-ai"]);
+    expect(config?.managedPlugins).toEqual(["common@teamai", "role-design@teamai"]);
     expect(output.stdout.filter((line) => line.includes("plugin-install")).length).toBe(2);
   }, 10_000);
 
@@ -153,7 +153,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const home = await tempDir("team-ai-product-home-");
     const fake = await createFakeCopilot({
       catalog: {
-        "company-ai": [
+        teamai: [
           { name: "common", version: "0.1.0" },
           { name: "role-api", version: "0.1.0" },
           { name: "product-payments", version: "0.1.0" },
@@ -168,13 +168,13 @@ describe("CLI integration with fake Copilot executable", () => {
       copilot: fake.client,
       out: output.out,
       err: output.err,
-      env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "acme/teamai-marketplace" },
+      env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "test-org/teamai-marketplace" },
     })).toBe(0);
 
     const settings = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8"));
-    expect(settings.enabledPlugins["product-payments@company-ai"]).toBe(true);
-    expect(settings.extraKnownMarketplaces["company-ai"]).toEqual({
-      source: { source: "github", repo: "acme/teamai-marketplace" },
+    expect(settings.enabledPlugins["product-payments@teamai"]).toBe(true);
+    expect(settings.extraKnownMarketplaces["teamai"]).toEqual({
+      source: { source: "github", repo: "test-org/teamai-marketplace" },
     });
   }, 10_000);
 
@@ -190,7 +190,7 @@ describe("CLI integration with fake Copilot executable", () => {
       copilot: fake.client,
       out: output.out,
       err: output.err,
-      env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "acme/teamai-marketplace" },
+      env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "test-org/teamai-marketplace" },
     })).toBe(1);
     await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect(output.stderr.some((line) => line.includes("is not present in the marketplace"))).toBe(true);

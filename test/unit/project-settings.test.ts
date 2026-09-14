@@ -16,16 +16,16 @@ describe("repository Copilot settings", () => {
     }), "utf8");
 
     const current = await readProjectSettings(root);
-    const merged = mergeProductPlugin(current, { name: "company-ai", repository: "acme/teamai-marketplace" }, "payments");
+    const merged = mergeProductPlugin(current, { name: "teamai", repository: "test-org/teamai-marketplace" }, "payments");
     await writeProjectSettings(root, merged);
     const persisted = JSON.parse(await readFile(settingsPath, "utf8"));
 
     expect(persisted.customFutureField).toEqual({ keep: true });
     expect(persisted.enabledPlugins["user-plugin@other"]).toBe(true);
-    expect(persisted.enabledPlugins["product-payments@company-ai"]).toBe(true);
+    expect(persisted.enabledPlugins["product-payments@teamai"]).toBe(true);
     expect(persisted.extraKnownMarketplaces.other).toBeDefined();
-    expect(persisted.extraKnownMarketplaces["company-ai"]).toEqual({
-      source: { source: "github", repo: "acme/teamai-marketplace" },
+    expect(persisted.extraKnownMarketplaces["teamai"]).toEqual({
+      source: { source: "github", repo: "test-org/teamai-marketplace" },
     });
   });
 

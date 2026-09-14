@@ -112,8 +112,8 @@ Global write preview:
 ## 5. Capability ownership model
 
 ```text
-Common  -> common@company-ai user plugin
-Role    -> role-<role>@company-ai user plugin
+Common  -> common@teamai user plugin
+Role    -> role-<role>@teamai user plugin
 Product -> repo-enabled product-* plugin
 Project -> native .github/* in the real business repository
 ```
