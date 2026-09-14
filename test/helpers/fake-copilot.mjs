@@ -16,8 +16,8 @@ if (args[0] === "--version") {
 } else if (args.join(" ") === "plugins marketplace list --json") {
   json(state.marketplaces);
 } else if (args[0] === "plugins" && args[1] === "marketplace" && args[2] === "add") {
-  if (!state.marketplaces.some((item) => item.name === "teamai")) {
-    state.marketplaces.push({ name: "teamai", source: args[3] });
+  if (!state.marketplaces.some((item) => item.name === state.marketplaceName)) {
+    state.marketplaces.push({ name: state.marketplaceName, source: args[3] });
     await save();
   }
 } else if (args[0] === "plugins" && args[1] === "marketplace" && args[2] === "browse") {

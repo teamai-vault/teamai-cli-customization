@@ -79,6 +79,41 @@ team-ai init --role api
 
 For normal team use, the default marketplace source is `teamai-vault/teamai-marketplace`.
 
+## Renaming the Marketplace ID
+
+The Copilot Marketplace ID is intentionally independent from the GitHub organization and repository names. If the final internal name needs to incorporate a department/team name, use the rename tool instead of doing manual search-and-replace:
+
+```text
+npm run rename:marketplace -- --from teamai --to payments-platform-ai --dry-run
+npm run rename:marketplace -- --from teamai --to payments-platform-ai --display-name "Payments Platform AI"
+```
+
+The tool updates both sibling repositories, including the Marketplace manifest, CLI default ID, plugin specs such as `common@teamai`, Copilot source markers, tests, and documentation. It verifies that no standalone old Marketplace ID remains.
+
+It deliberately does **not** rename repository/package identities such as:
+
+```text
+teamai-vault
+teamai-marketplace
+teamai-cli-customization
+```
+
+Optional path overrides are available when the repositories are not sibling directories:
+
+```text
+npm run rename:marketplace -- --to payments-platform-ai --cli-repo <path> --marketplace-repo <path>
+```
+
+Always run `--dry-run` first, then run the normal build/typecheck/tests and a real Copilot Marketplace smoke test after the rename.
+
+The script updates these two source repositories only. If the old Marketplace ID has already been rolled out, also plan a runtime migration for:
+
+- each developer machine's registered Copilot Marketplace and installed `*@<old-id>` plugins;
+- `~/.team-ai/config.yaml` (`marketplace.name` and `managedPlugins`);
+- business repositories that already declare the old ID in `.github/copilot/settings.json` (`extraKnownMarketplaces` and `enabledPlugins`).
+
+Before broad team rollout, renaming is therefore cheap. After rollout, treat it as a small migration rather than only a source-code rename.
+
 ## Commands
 
 ```text
@@ -223,6 +258,8 @@ This project does not currently:
 - implement TeamWiki, Recall, Learning, telemetry, or dashboards.
 
 Future work and priorities are recorded in [`docs/HANDOFF.md`](docs/HANDOFF.md).
+
+Marketplace identity changes should use [`scripts/rename-marketplace.mjs`](scripts/rename-marketplace.mjs). See [`scripts/README.md`](scripts/README.md) for the safe rename workflow and rollout migration boundary.
 
 ## Project documents
 

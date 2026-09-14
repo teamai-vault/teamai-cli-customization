@@ -2,10 +2,12 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { MARKETPLACE_NAME } from "../../src/config/schema.js";
 import { CopilotClient } from "../../src/copilot/cli.js";
 import { runProcess } from "../../src/utils/process.js";
 
 export interface FakeCopilotState {
+  marketplaceName: string;
   marketplaces: Array<{ name: string; source?: string }>;
   plugins: Array<{ name: string; marketplace?: string; version?: string; enabled: boolean; source?: string }>;
   catalog: Record<string, Array<{ name: string; version: string }>>;
@@ -23,10 +25,11 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
   const directory = await tempDir("team-ai-fake-copilot-");
   const statePath = path.join(directory, "state.json");
   const state: FakeCopilotState = {
+    marketplaceName: initial?.marketplaceName ?? MARKETPLACE_NAME,
     marketplaces: initial?.marketplaces ?? [],
     plugins: initial?.plugins ?? [],
     catalog: initial?.catalog ?? {
-      teamai: [
+      [initial?.marketplaceName ?? MARKETPLACE_NAME]: [
         { name: "common", version: "0.1.0" },
         { name: "role-api", version: "0.1.0" },
         { name: "role-ios", version: "0.1.0" },

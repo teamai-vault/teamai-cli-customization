@@ -79,6 +79,41 @@ team-ai init --role api
 
 正常团队使用时默认 Marketplace source 为 `teamai-vault/teamai-marketplace`。
 
+## 修改 Marketplace ID
+
+Copilot Marketplace ID 与 GitHub Organization / Repo 名称是相互独立的。如果最终内部名称需要结合部门或团队名称，不要手工逐文件替换，使用内置 rename 工具：
+
+```text
+npm run rename:marketplace -- --from teamai --to payments-platform-ai --dry-run
+npm run rename:marketplace -- --from teamai --to payments-platform-ai --display-name "Payments Platform AI"
+```
+
+该工具会同步修改两个 sibling Repo 中与 Marketplace 身份相关的内容，包括 Marketplace manifest、CLI 默认 ID、`common@teamai` 这类 Plugin spec、Copilot source marker、测试和文档，并在结束时检查旧 Marketplace ID 是否仍有独立 token 残留。
+
+它会明确保护以下 Repo / package 身份，不会因为 Marketplace 改名而修改：
+
+```text
+teamai-vault
+teamai-marketplace
+teamai-cli-customization
+```
+
+如果两个 Repo 不在 sibling 目录，可显式传路径：
+
+```text
+npm run rename:marketplace -- --to payments-platform-ai --cli-repo <path> --marketplace-repo <path>
+```
+
+建议永远先执行 `--dry-run`，正式改名后再运行 build/typecheck/tests，并执行一次真实 Copilot Marketplace smoke test。
+
+这个脚本只修改当前两个源码 Repo。如果旧 Marketplace ID 已经下发给同事使用，还需要额外规划运行时迁移：
+
+- 每台开发机已经注册的 Copilot Marketplace，以及已安装的 `*@<old-id>` Plugin；
+- `~/.team-ai/config.yaml` 中的 `marketplace.name` 和 `managedPlugins`；
+- 已经在 `.github/copilot/settings.json` 中声明旧 ID 的业务 Repo，包括 `extraKnownMarketplaces` 和 `enabledPlugins`。
+
+因此在正式推广前改名成本很低；推广之后再改名，应当视为一次小型迁移，而不只是源码 rename。
+
 ## 命令
 
 ```text

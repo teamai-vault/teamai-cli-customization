@@ -106,6 +106,19 @@ teamai-vault/teamai-marketplace
 
 Do not reintroduce `company-ai`, `Company AI`, or example organization identifiers such as `acme/*` into production defaults or documentation. Test-only repository identities should be explicitly named `test-org/*`.
 
+The Marketplace ID may still be renamed later after the owning department/team agrees on a final internal name. Do not do a raw global replacement because `teamai` is also part of repository identities such as `teamai-vault`, `teamai-marketplace`, and `teamai-cli-customization`.
+
+Use the checked-in rename tool instead:
+
+```text
+npm run rename:marketplace -- --from teamai --to <new-marketplace-id> --dry-run
+npm run rename:marketplace -- --from teamai --to <new-marketplace-id> [--display-name "<display name>"]
+```
+
+The tool lives at `scripts/rename-marketplace.mjs`, updates both sibling repositories, performs boundary-aware replacement of Marketplace identity tokens, and fails if the old standalone ID would remain. Repository/package identifiers containing the same text as part of a larger hyphenated name are intentionally preserved.
+
+The rename tool is intentionally source-repository scoped. Once an ID has been rolled out, a rename also requires migration of developer Copilot registrations/plugins, `~/.team-ai/config.yaml`, and any business repository `.github/copilot/settings.json` that declares the old Marketplace ID. Do not silently mutate those external/user-owned locations from the development rename script.
+
 ### 3.1 Marketplace manifest locations
 
 Both of these layouts were tested with a real local Marketplace and succeeded with `marketplace add` + `browse`:

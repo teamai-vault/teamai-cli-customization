@@ -1,4 +1,6 @@
 export const ROLES = ["api", "ios", "aos", "qa", "design"] as const;
+export const MARKETPLACE_NAME = "teamai";
+export const MARKETPLACE_REPOSITORY = "teamai-vault/teamai-marketplace";
 
 export type Role = (typeof ROLES)[number];
 
@@ -22,8 +24,8 @@ export function createDefaultConfig(marketplaceSource?: string): TeamAiConfig {
   return {
     version: 1,
     marketplace: {
-      name: "teamai",
-      repository: marketplaceSource ?? "teamai-vault/teamai-marketplace",
+      name: MARKETPLACE_NAME,
+      repository: marketplaceSource ?? MARKETPLACE_REPOSITORY,
     },
     managedPlugins: [],
   };
