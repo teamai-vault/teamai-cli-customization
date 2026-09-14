@@ -192,3 +192,13 @@ It deliberately preserves repository/package identities such as `teamai-vault`, 
 Always run `--dry-run` first, inspect the Git diff, then run typecheck/tests/build after the real rename.
 
 This tool changes source repositories only. If the old Marketplace ID has already been deployed to developer machines or business repositories, migrate Copilot registrations, `~/.team-ai/*`, and `.github/copilot/settings.json` separately.
+
+## Real Copilot Product E2E
+
+After building the CLI, run:
+
+```text
+npm run test:e2e:copilot
+```
+
+`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --role api --product teamai` plus `doctor` against the sibling Marketplace checkout, verifies the native repository settings declaration, and removes the temporary state in a `finally` block.

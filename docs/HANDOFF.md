@@ -2,7 +2,7 @@
 
 > Updated: 2026-09-15
 > Repositories: `teamai-vault/teamai-cli-customization`, `teamai-vault/teamai-marketplace`
-> Current phase: v0.1 MVP implemented; production hardening and team rollout next
+> Current phase: P0 production hardening implemented; first real Product Plugin implemented; remote CI verification and team rollout next
 
 ## 1. Current architecture
 
@@ -21,7 +21,8 @@ Role
   -> role-api / role-ios / role-aos / role-qa / role-design
 
 Product
-  -> future product-* plugin
+  -> product-teamai@teamai
+  -> future product-* plugins only for real use cases
   -> declared by real repository settings
 
 Project
@@ -40,6 +41,8 @@ No custom runtime, IDE adapter, overlay engine, or knowledge runtime has been in
 
 ### `teamai-marketplace`
 
+Current Marketplace catalog version: `0.2.0`.
+
 Current canonical manifest:
 
 ```text
@@ -55,13 +58,16 @@ role-ios
 role-aos
 role-qa
 role-design
+product-teamai
 ```
 
 `common` and `role-api` contain small, explicitly marked example capabilities. `role-design` contains deliberate `.gitkeep` placeholders for native Plugin extension locations.
 
-There is intentionally no fake Product Plugin yet. Add `product-*` only when at least one real cross-repository Product capability exists.
+`product-teamai` is the first real Product Plugin. Its `teamai-change-readiness` Skill applies the same cross-repository validation and release gate to the CLI and Marketplace repositories. Add another `product-*` only when another real cross-repository Product capability exists.
 
 ### `teamai-cli-customization`
+
+Current CLI version: `0.1.1`.
 
 Implemented commands:
 
@@ -254,8 +260,8 @@ npm test          PASS
 Test result:
 
 ```text
-7 test files passed
-17 tests passed
+8 test files passed
+20 tests passed
 ```
 
 Coverage includes:
@@ -272,16 +278,19 @@ Coverage includes:
 - `--dry-run`;
 - user-owned plugin preservation;
 - local Marketplace live-plugin projection ownership;
-- Product Plugin validation.
+- Product Plugin validation before Copilot mutation;
+- user-owned Plugin warning consistency;
+- empty Marketplace catalog Product diagnostics.
 
 ### Marketplace validation
 
 ```text
 npm run validate PASS
-npm test         PASS
+npm test         PASS (3 tests)
+npm run test:copilot PASS on Windows
 ```
 
-The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all six plugins.
+The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
 
 ### Real Copilot E2E
 
@@ -316,6 +325,15 @@ other role plugins disabled live Marketplace projections
 ```
 
 The temporary profile/repository was removed after the test.
+
+The P1.3 Product path was also re-run on Windows against the local Marketplace checkout with a fresh isolated profile and Git repository:
+
+```text
+team-ai init --role api --product teamai PASS
+team-ai doctor                            PASS, exit 0
+```
+
+The resulting native repository settings enabled `product-teamai@teamai` and declared the local Marketplace as a directory source. `scripts/smoke-team-ai.mjs` removed the temporary profile/repository in its `finally` path.
 
 After the Marketplace identity was renamed from the early placeholder `company-ai` to `teamai`, the same CLI flow was re-run against the **pushed GitHub Marketplace source** with no `TEAM_AI_MARKETPLACE_SOURCE` override. This exercised the default `teamai-vault/teamai-marketplace` path and the final `teamai` identity end-to-end:
 
@@ -385,7 +403,9 @@ POSIX path behavior is unit-tested, but an actual macOS machine should run the s
 
 ### 8.4 CI
 
-There is no GitHub Actions pipeline yet. Add Windows + macOS CI before broad team rollout.
+Both repositories now contain GitHub Actions workflows for Windows and macOS. The CLI runs install, typecheck, tests, and build. The Marketplace runs validation/tests plus a separate real Copilot CLI `1.0.83` contract smoke with isolated user state.
+
+The workflows have not yet been observed on GitHub Actions at this handoff checkpoint. Do not convert their presence into a claimed remote GREEN until the branch runs complete.
 
 ### 8.5 Agent Plugin schema validation
 
@@ -397,10 +417,10 @@ The following priority deliberately separates **native capability expansion** fr
 
 ### P0 — Production hardening before broad rollout
 
-1. Windows + macOS CI for build/typecheck/tests.
-2. Real CLI contract smoke test against the supported Copilot CLI version(s).
-3. Decide release/versioning policy for Marketplace Plugin versions and CLI version.
-4. Replace example capabilities with reviewed team content only when owners are identified.
+1. Windows + macOS CI for build/typecheck/tests — implemented; remote branch run pending.
+2. Real CLI contract smoke test against Copilot CLI `1.0.83` — implemented and locally PASS on Windows; macOS CI result pending.
+3. Release/versioning policy — implemented in `docs/VERSIONING.md`.
+4. Replace example capabilities with reviewed team content — pending identified owners; no placeholder replacement was invented.
 
 P0 should happen before adding major new feature families.
 
@@ -408,7 +428,7 @@ P0 should happen before adding major new feature families.
 
 #### P1.1 Shared MCP
 
-Implement when there is a real internal MCP use case.
+Status: entry criterion not met. Implement when there is a real internal MCP use case and an owner for credentials/security review.
 
 Preferred design:
 
@@ -432,6 +452,8 @@ Why before Hooks: an MCP gives high reusable value while usually having a cleare
 
 #### P1.2 Shared Hooks
 
+Status: entry criterion not met. No automatic lifecycle command was justified, so no Hook placeholder was added.
+
 Use native:
 
 ```text
@@ -452,7 +474,9 @@ Only then add the first real Hook use case.
 
 #### P1.3 First real Product Plugin
 
-Add only when a real Product has capabilities shared by multiple code repositories. Do not add `product-*` as a template-only shell.
+Completed with `product-teamai@teamai`. Its native `teamai-change-readiness` Skill is shared by the CLI and Marketplace repositories and has explicit validation completion criteria. It contains no custom runtime, MCP, Hook, or injection layer.
+
+Add future Product Plugins only when a real Product has capabilities shared by multiple code repositories. Do not add `product-*` as a template-only shell.
 
 ### P2 — Contribution / publish workflow
 
@@ -539,12 +563,12 @@ These should require a new design justification, not be added by default.
 ## 10. Recommended next implementation sequence
 
 ```text
-1. Add CI: Windows + macOS
-2. Replace/extend example Common/API content with reviewed real capabilities
-3. Select one real shared MCP use case
-4. Add MCP validation/governance + native MCP definition
-5. Select one real Hook use case
-6. Add Hook governance + native Hook
+1. Observe and fix the first Windows + macOS branch CI runs
+2. Identify owners for reviewed Common/API replacement content
+3. Select one real shared MCP use case and credential/security owner
+4. Add MCP validation/governance + native MCP definition only after step 3
+5. Select one real Hook lifecycle use case and security reviewer
+6. Add Hook governance + native Hook only after step 5
 7. Add contribution/publish PR workflow when manual contribution becomes painful
 8. Integrate LLM Wiki Runtime through a small Skill/MCP
 9. Revisit Learning only after the above is stable

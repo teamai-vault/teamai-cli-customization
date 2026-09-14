@@ -18,7 +18,8 @@ teamai-marketplace
     role-aos
     role-qa
     role-design
-    product-*（出现真实需求后再增加）
+    product-teamai
+    product-*（出现其他真实需求后再增加）
              |
              | Copilot 原生 marketplace/plugin 命令
              v
@@ -239,10 +240,13 @@ npm run build
 npm run typecheck
 npm run test:unit
 npm run test:integration
+npm run test:e2e:copilot
 npm test
 ```
 
 Integration tests 使用 fake Copilot executable，但会实际创建临时 Git Repo / worktree。因此它们明确属于 integration，不会被描述成真实 Copilot E2E。
+
+先执行 `npm run build`，再运行 `npm run test:e2e:copilot`，会使用已安装的真实 Copilot CLI、隔离的临时 profile/Git Repo 与 sibling Marketplace checkout，验证 `init --product teamai` 及 `doctor`。
 
 Release 前还应使用真实 Copilot CLI 验证。最新验证情况见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
 
@@ -261,3 +265,5 @@ Release 前还应使用真实 Copilot CLI 验证。最新验证情况见 [`docs/
 
 - [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)：根据冻结架构整理的正式 Implementation Plan。
 - [`docs/HANDOFF.md`](docs/HANDOFF.md)：当前实现状态、验证证据、遗留问题与后续优先级。
+- [`docs/VERSIONING.md`](docs/VERSIONING.md)：CLI、Marketplace 与 Plugin 的发布/版本规则。
+- [`docs/codex-first-review.md`](docs/codex-first-review.md)：统一的实现审查发现与处置状态。

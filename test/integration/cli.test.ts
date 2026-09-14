@@ -1,9 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../../src/cli.js";
-import { readGlobalConfig } from "../../src/config/global.js";
-import { MARKETPLACE_NAME } from "../../src/config/schema.js";
+import { readGlobalConfig, writeGlobalConfig } from "../../src/config/global.js";
+import { createDefaultConfig, MARKETPLACE_NAME } from "../../src/config/schema.js";
 import { partitionPath } from "../../src/project/partition.js";
 import { detectProjectIdentity } from "../../src/project/anchors.js";
 import { createFakeCopilot, createGitRepo, tempDir } from "../helpers/test-utils.js";
@@ -180,13 +180,13 @@ describe("CLI integration with fake Copilot executable", () => {
         [MARKETPLACE_NAME]: [
           { name: "common", version: "0.1.0" },
           { name: "role-api", version: "0.1.0" },
-          { name: "product-payments", version: "0.1.0" },
+          { name: "product-teamai", version: "0.1.0" },
         ],
       },
     });
     const output = capture();
 
-    expect(await runCli(["init", "--role", "api", "--product", "payments"], {
+    expect(await runCli(["init", "--role", "api", "--product", "teamai"], {
       cwd: repo,
       homeDir: home,
       copilot: fake.client,
@@ -196,7 +196,7 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(0);
 
     const settings = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8"));
-    expect(settings.enabledPlugins[`product-payments@${MARKETPLACE_NAME}`]).toBe(true);
+    expect(settings.enabledPlugins[`product-teamai@${MARKETPLACE_NAME}`]).toBe(true);
     expect(settings.extraKnownMarketplaces[MARKETPLACE_NAME]).toEqual({
       source: { source: "github", repo: "test-org/teamai-marketplace" },
     });
@@ -221,5 +221,38 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await readGlobalConfig(home)).toBeUndefined();
     await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect(output.stderr.some((line) => line.includes("is not present in the marketplace"))).toBe(true);
+  }, 10_000);
+
+  test("doctor rejects a declared product when a readable catalog is empty", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-empty-catalog-home-");
+    const config = createDefaultConfig("test-org/teamai-marketplace");
+    config.role = "api";
+    config.managedPlugins = [`common@${MARKETPLACE_NAME}`, `role-api@${MARKETPLACE_NAME}`];
+    await writeGlobalConfig(config, home);
+    const settingsPath = path.join(repo, ".github", "copilot", "settings.json");
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    await writeFile(settingsPath, JSON.stringify({
+      enabledPlugins: { [`product-teamai@${MARKETPLACE_NAME}`]: true },
+    }), "utf8");
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: MARKETPLACE_NAME, source: "user-added" }],
+      plugins: [
+        { name: "common", marketplace: MARKETPLACE_NAME, version: "0.1.0", enabled: true },
+        { name: "role-api", marketplace: MARKETPLACE_NAME, version: "0.1.0", enabled: true },
+      ],
+      catalog: { [MARKETPLACE_NAME]: [] },
+    });
+    const output = capture();
+
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: output.out,
+      err: output.err,
+      env: process.env,
+    })).toBe(1);
+    expect(output.stdout).toContain(`✗ product-teamai@${MARKETPLACE_NAME} is not present in ${MARKETPLACE_NAME}.`);
   }, 10_000);
 });

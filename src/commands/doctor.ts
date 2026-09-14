@@ -49,7 +49,7 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     fail(`Team AI config is invalid: ${(error as Error).message}`);
   }
 
-  let marketplaceCatalog: { name: string }[] = [];
+  let marketplaceCatalog: { name: string }[] | undefined;
   if (copilotAvailable && config) {
     try {
       const marketplaces = await context.copilot.listMarketplaces(context.cwd);
@@ -84,11 +84,11 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
       ok("Repository Copilot settings are parseable.");
       if (config) {
         const products = enabledProductPlugins(settings, config.marketplace.name);
-        const catalogNames = new Set(marketplaceCatalog.map((item) => item.name));
+        const catalogNames = new Set((marketplaceCatalog ?? []).map((item) => item.name));
         for (const spec of products) {
           const name = spec.split("@")[0];
-          if (marketplaceCatalog.length > 0 && !catalogNames.has(name)) fail(`${spec} is not present in ${config.marketplace.name}.`);
-          else ok(`Product plugin declaration: ${spec}`);
+          if (marketplaceCatalog && !catalogNames.has(name)) fail(`${spec} is not present in ${config.marketplace.name}.`);
+          else if (marketplaceCatalog) ok(`Product plugin declaration: ${spec}`);
         }
       }
     } catch (error) {

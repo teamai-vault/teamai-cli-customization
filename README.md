@@ -18,7 +18,8 @@ teamai-marketplace
     role-aos
     role-qa
     role-design
-    product-* (when a real use case exists)
+    product-teamai
+    product-* (when another real use case exists)
              |
              | native Copilot marketplace/plugin commands
              v
@@ -239,10 +240,13 @@ npm run build
 npm run typecheck
 npm run test:unit
 npm run test:integration
+npm run test:e2e:copilot
 npm test
 ```
 
 Integration tests use a fake Copilot executable plus real temporary Git repositories/worktrees. They are deliberately labeled integration tests, not real Copilot E2E.
+
+After `npm run build`, `npm run test:e2e:copilot` uses the installed real Copilot CLI with an isolated temporary profile and Git repository to validate `init --product teamai` plus `doctor` against the sibling Marketplace checkout.
 
 Real Copilot CLI behavior should also be exercised before releases. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the latest validation state.
 
@@ -265,3 +269,5 @@ Marketplace identity changes should use [`scripts/rename-marketplace.mjs`](scrip
 
 - [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) — implementation plan derived from the frozen architecture.
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — current implementation state, validation evidence, remaining issues, and next priorities.
+- [`docs/VERSIONING.md`](docs/VERSIONING.md) — CLI, Marketplace, and Plugin release/version rules.
+- [`docs/codex-first-review.md`](docs/codex-first-review.md) — consolidated implementation review findings and dispositions.
