@@ -8,7 +8,7 @@ import { printActions, printWarnings } from "./helpers.js";
 
 export async function syncCommand(context: CommandContext): Promise<void> {
   const config = await readGlobalConfig(context.homeDir);
-  if (!config?.role) throw new Error("Team AI is not initialized. Run `team-ai init --role <role>` first.");
+  if (!config?.role) throw new Error("Team AI is not initialized. Run `team-ai init --marketplace <source> --role <role>` first.");
 
   const converged = await convergeUserPlugins(context.copilot, config, { dryRun: context.dryRun, cwd: context.cwd });
   printActions(converged.actions, context.dryRun, context.out);

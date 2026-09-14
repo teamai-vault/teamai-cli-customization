@@ -29,14 +29,14 @@ export async function readProjectSettings(workspaceRoot: string): Promise<Projec
   }
 }
 
-export function marketplaceSourceSetting(repository: string): MarketplaceSetting {
-  if (/^[A-Za-z]:[\\/]/.test(repository) || repository.startsWith("/") || repository.startsWith("./") || repository.startsWith("../")) {
-    return { source: { source: "directory", path: path.resolve(repository) } };
+export function marketplaceSourceSetting(source: string): MarketplaceSetting {
+  if (/^[A-Za-z]:[\\/]/.test(source) || source.startsWith("/") || source.startsWith("./") || source.startsWith("../")) {
+    return { source: { source: "directory", path: path.resolve(source) } };
   }
-  if (/^(?:https?:\/\/|ssh:\/\/|git@)/.test(repository)) {
-    return { source: { source: "git", url: repository } };
+  if (/^(?:https?:\/\/|ssh:\/\/|git@)/.test(source)) {
+    return { source: { source: "git", url: source } };
   }
-  return { source: { source: "github", repo: repository } };
+  return { source: { source: "github", repo: source } };
 }
 
 export function mergeProductPlugin(
@@ -50,7 +50,7 @@ export function mergeProductPlugin(
     ...current,
     extraKnownMarketplaces: {
       ...(current.extraKnownMarketplaces ?? {}),
-      [marketplace.name]: marketplaceSourceSetting(marketplace.repository),
+      [marketplace.name]: marketplaceSourceSetting(marketplace.source),
     },
     enabledPlugins: {
       ...(current.enabledPlugins ?? {}),

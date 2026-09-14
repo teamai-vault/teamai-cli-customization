@@ -42,7 +42,7 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
   let config;
   try {
     config = await readGlobalConfig(context.homeDir);
-    if (!config) warn("Team AI config is missing. Run `team-ai init --role <role>`. ");
+    if (!config) warn("Team AI config is missing. Run `team-ai init --marketplace <source> --role <role>`. ");
     else if (!config.role) warn("Team AI role is not configured.");
     else ok(`Team AI config: role=${config.role}`);
   } catch (error) {

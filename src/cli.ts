@@ -14,7 +14,7 @@ function usage(): string {
     "team-ai <command> [options]",
     "",
     "Commands:",
-    "  init [--role api|ios|aos|qa|design] [--product <name>]",
+    "  init [--marketplace <source>] [--role api|ios|aos|qa|design] [--product <name>]",
     "  sync",
     "  role list",
     "  role set <role>",
@@ -53,7 +53,11 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
   try {
     switch (args[0]) {
       case "init":
-        await initCommand(context, { role: optionValue(args, "--role"), product: optionValue(args, "--product") });
+        await initCommand(context, {
+          marketplace: optionValue(args, "--marketplace"),
+          role: optionValue(args, "--role"),
+          product: optionValue(args, "--product"),
+        });
         return 0;
       case "sync":
         await syncCommand(context);

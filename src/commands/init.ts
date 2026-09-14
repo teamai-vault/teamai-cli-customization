@@ -1,5 +1,6 @@
-import { loadGlobalConfig, writeGlobalConfig } from "../config/global.js";
-import { isRole, ROLES, type Role } from "../config/schema.js";
+import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
+import { createConfig, isRole, ROLES, type Role } from "../config/schema.js";
+import { normalizeMarketplaceSource, resolveMarketplaceConfig } from "../copilot/marketplace.js";
 import { convergeUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, mergeProductPlugin, productPluginName, readProjectSettings, writeProjectSettings } from "../copilot/project-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
@@ -9,27 +10,59 @@ import type { CommandContext } from "./context.js";
 import { printActions, printWarnings } from "./helpers.js";
 
 export interface InitOptions {
+  marketplace?: string;
   role?: string;
   product?: string;
 }
 
 export async function initCommand(context: CommandContext, options: InitOptions): Promise<void> {
-  const source = context.env.TEAM_AI_MARKETPLACE_SOURCE;
-  const config = await loadGlobalConfig(context.homeDir, source);
-  const previousRole = config.role;
-  if (options.role !== undefined) {
-    if (!isRole(options.role)) throw new Error(`Unknown role '${options.role}'. Expected one of: ${ROLES.join(", ")}.`);
-    config.role = options.role as Role;
+  let config = await readGlobalConfig(context.homeDir);
+  const requestedSource = options.marketplace ? normalizeMarketplaceSource(options.marketplace, context.cwd) : undefined;
+
+  if (!config) {
+    if (!requestedSource) {
+      throw new Error("A Marketplace is required for first-time init. Use `team-ai init --marketplace <source> --role <role>`. ");
+    }
+  } else if (requestedSource && requestedSource !== config.marketplace.source) {
+    throw new Error([
+      "A different Marketplace is already configured.",
+      `Current: ${config.marketplace.name} (${config.marketplace.source})`,
+      `Requested: ${requestedSource}`,
+      "Refusing to switch Marketplace during init.",
+    ].join("\n"));
   }
-  if (!config.role) throw new Error("A role is required for first-time init. Use `team-ai init --role <role>`. ");
+
+  if (options.role !== undefined && !isRole(options.role)) {
+    throw new Error(`Unknown role '${options.role}'. Expected one of: ${ROLES.join(", ")}.`);
+  }
+  const requestedRole = options.role as Role | undefined;
+  const effectiveRole = requestedRole ?? config?.role;
+  if (!effectiveRole) throw new Error("A role is required for first-time init. Use `team-ai init --marketplace <source> --role <role>`. ");
+
+  const version = await context.copilot.version();
+  context.out(`Copilot CLI: ${version}`);
+
+  if (!config) {
+    const marketplace = await resolveMarketplaceConfig(context.copilot, requestedSource!, {
+      cwd: context.cwd,
+      dryRun: context.dryRun,
+    });
+    if (!marketplace) {
+      context.out(`WOULD marketplace-add: ${requestedSource}`);
+      context.out("! Marketplace name discovery requires registration; plugin/config/project previews are skipped during first-time dry-run.");
+      return;
+    }
+    config = createConfig(marketplace);
+  }
+
+  const previousRole = config.role;
+  config.role = effectiveRole;
 
   const identity = await detectProjectIdentity(context.cwd);
   if (options.product && !identity) {
     throw new Error("--product requires running team-ai init inside a Git repository.");
   }
 
-  const version = await context.copilot.version();
-  context.out(`Copilot CLI: ${version}`);
   const previousRoleSpec = previousRole && previousRole !== config.role
     ? `role-${previousRole}@${config.marketplace.name}`
     : undefined;

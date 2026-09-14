@@ -25,7 +25,7 @@ export async function convergeUserPlugins(
   config: TeamAiConfig,
   options: { dryRun?: boolean; cwd?: string; disableSpecs?: string[] } = {},
 ): Promise<ConvergeResult> {
-  if (!config.role) throw new Error("No Team AI role is configured. Run `team-ai init --role <role>` first.");
+  if (!config.role) throw new Error("No Team AI role is configured. Run `team-ai init --marketplace <source> --role <role>` first.");
 
   const actions: PlannedAction[] = [];
   const warnings: string[] = [];
@@ -33,8 +33,8 @@ export async function convergeUserPlugins(
   const owned = new Set(config.managedPlugins ?? []);
   const marketplaces = await client.listMarketplaces(options.cwd);
   if (!marketplaces.some((item) => item.name === config.marketplace.name)) {
-    actions.push({ kind: "marketplace-add", target: config.marketplace.repository });
-    if (!options.dryRun) await client.addMarketplace(config.marketplace.repository, options.cwd);
+    actions.push({ kind: "marketplace-add", target: config.marketplace.source });
+    if (!options.dryRun) await client.addMarketplace(config.marketplace.source, options.cwd);
   }
 
   let installed = await client.listPlugins(options.cwd);

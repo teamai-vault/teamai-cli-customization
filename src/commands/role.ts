@@ -11,7 +11,7 @@ export function roleListCommand(context: CommandContext): void {
 export async function roleSetCommand(context: CommandContext, role: string): Promise<void> {
   if (!isRole(role)) throw new Error(`Unknown role '${role}'. Expected one of: ${ROLES.join(", ")}.`);
   const current = await readGlobalConfig(context.homeDir);
-  if (!current) throw new Error("Team AI is not initialized. Run `team-ai init --role <role>` first.");
+  if (!current) throw new Error("Team AI is not initialized. Run `team-ai init --marketplace <source> --role <role>` first.");
 
   const previousSpec = current.role ? `role-${current.role}@${current.marketplace.name}` : undefined;
   const next = { ...current, role };

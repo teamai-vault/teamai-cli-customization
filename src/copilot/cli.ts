@@ -11,6 +11,7 @@ export interface InstalledPlugin {
 
 export interface MarketplaceRow {
   name: string;
+  source?: string;
   [key: string]: unknown;
 }
 
