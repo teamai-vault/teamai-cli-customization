@@ -77,6 +77,13 @@ This review covers the current source, tests, READMEs, Git state, recent history
 - Evidence: the first Windows CI run passed the literal `test/*.test.mjs` to Node 20, which could not find that path.
 - Disposition: Fixed. The test script now uses Node's built-in test discovery without a shell glob.
 
+### CFR-11 — Initial workflow actions used the deprecated Node 20 action runtime
+
+- Severity: Low maintenance defect
+- Repositories: both
+- Evidence: the first successful branch runs emitted deprecation annotations for `actions/checkout@v4` and `actions/setup-node@v4`, with GitHub forcing their action runtime to Node 24.
+- Disposition: Fixed. Both workflows now use the current Node 24-based v7 major releases.
+
 ## No change recommended
 
 - P1.1 MCP: no reviewed shared MCP use case or credential owner exists yet.
