@@ -8,7 +8,7 @@ export interface PlannedAction {
 
 export interface ConvergeResult {
   actions: PlannedAction[];
-  catalog?: MarketplacePluginRow[];
+  catalogAvailable: boolean;
   managedPlugins: string[];
   warnings: string[];
 }
@@ -116,5 +116,5 @@ export async function convergeUserPlugins(
     owned.delete(spec);
   }
 
-  return { actions, catalog, managedPlugins: [...owned].sort(), warnings };
+  return { actions, catalogAvailable: catalog !== undefined, managedPlugins: [...owned].sort(), warnings };
 }

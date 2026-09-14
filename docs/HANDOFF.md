@@ -2,7 +2,7 @@
 
 > Updated: 2026-09-15
 > Repositories: `teamai-vault/teamai-cli-customization`, `teamai-vault/teamai-marketplace`
-> Current phase: P0 production hardening implemented; first real Product Plugin implemented; remote CI verification and team rollout next
+> Current phase: P0 production hardening and first real Product Plugin implemented and branch-CI validated; reviewed team capability rollout next
 
 ## 1. Current architecture
 
@@ -286,11 +286,11 @@ Coverage includes:
 
 ```text
 npm run validate PASS
-npm test         PASS (3 tests)
-npm run test:copilot PASS on Windows
+npm test         PASS (5 tests)
+npm run test:copilot PASS locally on Windows and in Windows/macOS branch CI
 ```
 
-The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
+The validator also rejects lexical and symlink/junction Plugin source escapes and Skills without a frontmatter description. The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
 
 ### Real Copilot E2E
 
@@ -399,13 +399,18 @@ Possible future approaches:
 
 ### 8.3 macOS runtime E2E
 
-POSIX path behavior is unit-tested, but an actual macOS machine should run the same real Copilot E2E before declaring cross-platform release readiness.
+The Marketplace contract smoke ran against real Copilot CLI `1.0.83` on macOS GitHub Actions. The fuller `team-ai init --role api --product teamai` Product flow has passed locally on Windows, but has not yet run on a real macOS machine.
 
 ### 8.4 CI
 
-Both repositories now contain GitHub Actions workflows for Windows and macOS. The CLI runs install, typecheck, tests, and build. The Marketplace runs validation/tests plus a separate real Copilot CLI `1.0.83` contract smoke with isolated user state.
+Both repositories contain GitHub Actions workflows for Windows and macOS. The CLI runs install, typecheck, tests, and build. The Marketplace runs validation/tests plus a separate real Copilot CLI `1.0.83` contract smoke with isolated user state.
 
-The workflows have not yet been observed on GitHub Actions at this handoff checkpoint. Do not convert their presence into a claimed remote GREEN until the branch runs complete.
+The branch workflows completed GREEN on both platforms:
+
+- CLI run `34893443628`: Windows and macOS build/typecheck/tests passed.
+- Marketplace run `34893445246`: Windows and macOS validation/tests and real Copilot contract smoke passed.
+
+The first runs exposed a macOS canonical temp-path mismatch and a Windows shell-glob assumption. Both root causes were fixed and retained as portable tests/configuration.
 
 ### 8.5 Agent Plugin schema validation
 
@@ -417,8 +422,8 @@ The following priority deliberately separates **native capability expansion** fr
 
 ### P0 — Production hardening before broad rollout
 
-1. Windows + macOS CI for build/typecheck/tests — implemented; remote branch run pending.
-2. Real CLI contract smoke test against Copilot CLI `1.0.83` — implemented and locally PASS on Windows; macOS CI result pending.
+1. Windows + macOS CI for build/typecheck/tests — implemented and GREEN on branch CI.
+2. Real CLI contract smoke test against Copilot CLI `1.0.83` — implemented and GREEN on Windows and macOS branch CI.
 3. Release/versioning policy — implemented in `docs/VERSIONING.md`.
 4. Replace example capabilities with reviewed team content — pending identified owners; no placeholder replacement was invented.
 
@@ -563,12 +568,12 @@ These should require a new design justification, not be added by default.
 ## 10. Recommended next implementation sequence
 
 ```text
-1. Observe and fix the first Windows + macOS branch CI runs
-2. Identify owners for reviewed Common/API replacement content
-3. Select one real shared MCP use case and credential/security owner
-4. Add MCP validation/governance + native MCP definition only after step 3
-5. Select one real Hook lifecycle use case and security reviewer
-6. Add Hook governance + native Hook only after step 5
+1. Identify owners for reviewed Common/API replacement content
+2. Select one real shared MCP use case and credential/security owner
+3. Add MCP validation/governance + native MCP definition only after step 2
+4. Select one real Hook lifecycle use case and security reviewer
+5. Add Hook governance + native Hook only after step 4
+6. Run the full Product init E2E on a real macOS machine before release
 7. Add contribution/publish PR workflow when manual contribution becomes painful
 8. Integrate LLM Wiki Runtime through a small Skill/MCP
 9. Revisit Learning only after the above is stable

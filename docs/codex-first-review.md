@@ -25,8 +25,8 @@ This review covers the current source, tests, READMEs, Git state, recent history
 
 - Severity: Medium
 - Repository: `teamai-marketplace`
-- Evidence: the validator resolved catalog `source` values without checking the resulting path boundary. A `../outside-plugin` fixture received a clean validation result.
-- Disposition: Fixed. Local Plugin sources must resolve inside the Marketplace repository; a focused boundary test remains.
+- Evidence: the validator first accepted `../outside-plugin`; its initial lexical boundary fix could then be bypassed by an in-repository junction or symlink targeting an external directory.
+- Disposition: Fixed. Local Plugin sources must remain inside the Marketplace repository both lexically and after canonical `realpath` resolution; focused traversal and link-escape tests remain.
 
 ### CFR-04 — Doctor treated an empty readable catalog as unavailable
 
@@ -83,6 +83,27 @@ This review covers the current source, tests, READMEs, Git state, recent history
 - Repositories: both
 - Evidence: the first successful branch runs emitted deprecation annotations for `actions/checkout@v4` and `actions/setup-node@v4`, with GitHub forcing their action runtime to Node 24.
 - Disposition: Fixed. Both workflows now use the current Node 24-based v7 major releases.
+
+### CFR-12 — Skill validation omitted required capability description
+
+- Severity: Medium
+- Repository: `teamai-marketplace`
+- Evidence: a Skill with a matching frontmatter `name` but no `description` passed validation.
+- Disposition: Fixed. The validator now requires a non-empty frontmatter description, with a focused negative test.
+
+### CFR-13 — Real smoke initialization could bypass temporary-state cleanup
+
+- Severity: Low reliability defect
+- Repositories: both
+- Evidence: temporary profiles and directory initialization happened before the `try/finally`; an initialization failure could therefore leave isolated test state behind.
+- Disposition: Fixed. Creation and initialization now occur inside the cleanup boundary, guarded for the case where temporary-root creation itself fails.
+
+### CFR-14 — Convergence exposed an unused full catalog result
+
+- Severity: Low optimization
+- Repository: `teamai-cli-customization`
+- Evidence: `ConvergeResult` returned the full Marketplace catalog although `init` only needed to know whether it was available.
+- Disposition: Fixed. The result now exposes the minimal `catalogAvailable` boolean.
 
 ## No change recommended
 

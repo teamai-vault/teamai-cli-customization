@@ -11,29 +11,9 @@ import { fileURLToPath } from "node:url";
 const exec = promisify(execFile);
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const marketplaceRoot = path.resolve(cliRoot, "..", "teamai-marketplace");
-const runRoot = await mkdtemp(path.join(os.tmpdir(), "team-ai-real-e2e-"));
-const profile = path.join(runRoot, "profile");
-const repository = path.join(runRoot, "repository");
-const copilotHome = path.join(profile, ".copilot");
-const cacheHome = path.join(profile, ".cache");
-const appData = path.join(profile, "AppData", "Roaming");
-const localAppData = path.join(profile, "AppData", "Local");
-
-await Promise.all([repository, copilotHome, cacheHome, appData, localAppData].map((directory) => mkdir(directory, { recursive: true })));
-
-const env = {
-  ...process.env,
-  HOME: profile,
-  USERPROFILE: profile,
-  COPILOT_HOME: copilotHome,
-  COPILOT_CACHE_HOME: cacheHome,
-  APPDATA: appData,
-  LOCALAPPDATA: localAppData,
-  TEAM_AI_MARKETPLACE_SOURCE: marketplaceRoot,
-};
-delete env.COPILOT_GITHUB_TOKEN;
-delete env.GH_TOKEN;
-delete env.GITHUB_TOKEN;
+let runRoot;
+let repository;
+let env;
 
 async function run(command, args, cwd = repository) {
   try {
@@ -44,6 +24,28 @@ async function run(command, args, cwd = repository) {
 }
 
 try {
+  runRoot = await mkdtemp(path.join(os.tmpdir(), "team-ai-real-e2e-"));
+  const profile = path.join(runRoot, "profile");
+  repository = path.join(runRoot, "repository");
+  const copilotHome = path.join(profile, ".copilot");
+  const cacheHome = path.join(profile, ".cache");
+  const appData = path.join(profile, "AppData", "Roaming");
+  const localAppData = path.join(profile, "AppData", "Local");
+  await Promise.all([repository, copilotHome, cacheHome, appData, localAppData].map((directory) => mkdir(directory, { recursive: true })));
+  env = {
+    ...process.env,
+    HOME: profile,
+    USERPROFILE: profile,
+    COPILOT_HOME: copilotHome,
+    COPILOT_CACHE_HOME: cacheHome,
+    APPDATA: appData,
+    LOCALAPPDATA: localAppData,
+    TEAM_AI_MARKETPLACE_SOURCE: marketplaceRoot,
+  };
+  delete env.COPILOT_GITHUB_TOKEN;
+  delete env.GH_TOKEN;
+  delete env.GITHUB_TOKEN;
+
   await run("git", ["init", "-b", "main"]);
   await run("git", ["config", "user.email", "team-ai@example.invalid"]);
   await run("git", ["config", "user.name", "Team AI Test"]);
@@ -61,5 +63,5 @@ try {
 
   console.log(`Real team-ai Product Plugin E2E passed on ${process.platform}.`);
 } finally {
-  await rm(runRoot, { recursive: true, force: true });
+  if (runRoot) await rm(runRoot, { recursive: true, force: true });
 }

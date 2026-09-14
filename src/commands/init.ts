@@ -48,7 +48,7 @@ export async function initCommand(context: CommandContext, options: InitOptions)
   if (identity) {
     let settings = await readProjectSettings(identity.workspaceRoot);
     if (options.product && productName) {
-      if (converged.catalog) {
+      if (converged.catalogAvailable) {
         const merged = mergeProductPlugin(settings, config.marketplace, options.product);
         if (JSON.stringify(merged) !== JSON.stringify(settings)) {
           context.out(`${context.dryRun ? "WOULD" : "DONE"} write: .github/copilot/settings.json`);
