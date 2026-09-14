@@ -27,6 +27,7 @@ export async function initCommand(context: CommandContext, options: InitOptions)
   if (options.product && !identity) {
     throw new Error("--product requires running team-ai init inside a Git repository.");
   }
+  const productName = options.product ? productPluginName(options.product) : undefined;
 
   const version = await context.copilot.version();
   context.out(`Copilot CLI: ${version}`);
@@ -37,6 +38,7 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     dryRun: context.dryRun,
     cwd: context.cwd,
     disableSpecs: previousRoleSpec ? [previousRoleSpec] : [],
+    requiredCatalogPlugin: productName,
   });
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
@@ -45,25 +47,16 @@ export async function initCommand(context: CommandContext, options: InitOptions)
   let productPlugins: string[] = [];
   if (identity) {
     let settings = await readProjectSettings(identity.workspaceRoot);
-    if (options.product) {
-      const productName = productPluginName(options.product);
-      let catalog: Array<{ name: string }> | undefined;
-      try {
-        catalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
-      } catch (error) {
-        if (!context.dryRun) throw error;
-        context.out(`! Product validation skipped in dry-run because ${config.marketplace.name} is not currently browseable; project settings preview was not changed.`);
-      }
-      if (catalog) {
-        if (!catalog.some((item) => item.name === productName)) {
-          throw new Error(`Product plugin ${productName}@${config.marketplace.name} is not present in the marketplace; project settings were not changed.`);
-        }
+    if (options.product && productName) {
+      if (converged.catalog) {
         const merged = mergeProductPlugin(settings, config.marketplace, options.product);
         if (JSON.stringify(merged) !== JSON.stringify(settings)) {
           context.out(`${context.dryRun ? "WOULD" : "DONE"} write: .github/copilot/settings.json`);
           if (!context.dryRun) await writeProjectSettings(identity.workspaceRoot, merged);
           settings = merged;
         }
+      } else {
+        context.out(`! Product validation skipped in dry-run because ${config.marketplace.name} is not currently browseable; project settings preview was not changed.`);
       }
     }
     productPlugins = enabledProductPlugins(settings, config.marketplace.name);

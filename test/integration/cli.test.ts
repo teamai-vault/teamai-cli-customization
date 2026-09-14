@@ -120,6 +120,29 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
   }, 10_000);
 
+  test("warns when an enabled desired plugin remains user-owned", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-enabled-owned-home-");
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: MARKETPLACE_NAME, source: "user-added" }],
+      plugins: [{ name: "role-api", marketplace: MARKETPLACE_NAME, version: "0.1.0", enabled: true, source: `marketplace:${MARKETPLACE_NAME}` }],
+    });
+    const output = capture();
+
+    expect(await runCli(["init", "--role", "api"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: output.out,
+      err: output.err,
+      env: process.env,
+    })).toBe(0);
+
+    expect((await fake.readState()).plugins.find((item) => item.name === "role-api")).toMatchObject({ version: "0.1.0", enabled: true });
+    expect((await readGlobalConfig(home))?.managedPlugins).toEqual([`common@${MARKETPLACE_NAME}`]);
+    expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
+  }, 10_000);
+
   test("claims disabled live-marketplace projections by installing the desired plugins", async () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-live-marketplace-home-");
@@ -183,6 +206,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-product-missing-home-");
     const fake = await createFakeCopilot();
+    const before = await fake.readState();
     const output = capture();
 
     expect(await runCli(["init", "--role", "api", "--product", "missing"], {
@@ -193,6 +217,8 @@ describe("CLI integration with fake Copilot executable", () => {
       err: output.err,
       env: { ...process.env, TEAM_AI_MARKETPLACE_SOURCE: "test-org/teamai-marketplace" },
     })).toBe(1);
+    expect(await fake.readState()).toEqual(before);
+    expect(await readGlobalConfig(home)).toBeUndefined();
     await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect(output.stderr.some((line) => line.includes("is not present in the marketplace"))).toBe(true);
   }, 10_000);

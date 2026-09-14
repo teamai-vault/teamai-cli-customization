@@ -84,6 +84,10 @@ export class CopilotClient {
     await this.exec(["plugins", "marketplace", "add", source], cwd);
   }
 
+  async removeMarketplace(name: string, cwd?: string): Promise<void> {
+    await this.exec(["plugins", "marketplace", "remove", name], cwd);
+  }
+
   async installPlugin(spec: string, cwd?: string): Promise<void> {
     await this.exec(["plugins", "install", spec], cwd);
   }

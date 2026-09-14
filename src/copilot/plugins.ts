@@ -1,5 +1,5 @@
 import type { Role, TeamAiConfig } from "../config/schema.js";
-import type { CopilotClient, InstalledPlugin } from "./cli.js";
+import type { CopilotClient, InstalledPlugin, MarketplacePluginRow } from "./cli.js";
 
 export interface PlannedAction {
   kind: "marketplace-add" | "plugin-install" | "plugin-enable" | "plugin-update" | "plugin-disable";
@@ -8,6 +8,7 @@ export interface PlannedAction {
 
 export interface ConvergeResult {
   actions: PlannedAction[];
+  catalog?: MarketplacePluginRow[];
   managedPlugins: string[];
   warnings: string[];
 }
@@ -23,7 +24,7 @@ export function pluginSpec(plugin: Pick<InstalledPlugin, "name" | "marketplace">
 export async function convergeUserPlugins(
   client: CopilotClient,
   config: TeamAiConfig,
-  options: { dryRun?: boolean; cwd?: string; disableSpecs?: string[] } = {},
+  options: { dryRun?: boolean; cwd?: string; disableSpecs?: string[]; requiredCatalogPlugin?: string } = {},
 ): Promise<ConvergeResult> {
   if (!config.role) throw new Error("No Team AI role is configured. Run `team-ai init --role <role>` first.");
 
@@ -32,16 +33,41 @@ export async function convergeUserPlugins(
   const desired = desiredUserPlugins(config.role, config.marketplace.name);
   const owned = new Set(config.managedPlugins ?? []);
   const marketplaces = await client.listMarketplaces(options.cwd);
-  if (!marketplaces.some((item) => item.name === config.marketplace.name)) {
+  const marketplaceWasRegistered = marketplaces.some((item) => item.name === config.marketplace.name);
+  if (!marketplaceWasRegistered) {
     actions.push({ kind: "marketplace-add", target: config.marketplace.repository });
     if (!options.dryRun) await client.addMarketplace(config.marketplace.repository, options.cwd);
   }
 
   let installed = await client.listPlugins(options.cwd);
-  const catalog = marketplaces.some((item) => item.name === config.marketplace.name) || !options.dryRun
-    ? await client.browseMarketplace(config.marketplace.name, options.cwd)
-    : [];
-  const catalogVersion = new Map(catalog.map((item) => [item.name, item.version]));
+  let catalog: MarketplacePluginRow[] | undefined;
+  try {
+    catalog = marketplaceWasRegistered || !options.dryRun
+      ? await client.browseMarketplace(config.marketplace.name, options.cwd)
+      : undefined;
+  } catch (error) {
+    if (!marketplaceWasRegistered && !options.dryRun) {
+      try {
+        await client.removeMarketplace(config.marketplace.name, options.cwd);
+      } catch (cleanupError) {
+        throw new Error(`${(error as Error).message} Cleanup also failed: ${(cleanupError as Error).message}`);
+      }
+    }
+    throw error;
+  }
+  if (options.requiredCatalogPlugin && catalog && !catalog.some((item) => item.name === options.requiredCatalogPlugin)) {
+    if (!marketplaceWasRegistered) {
+      try {
+        await client.removeMarketplace(config.marketplace.name, options.cwd);
+      } catch (error) {
+        throw new Error(
+          `Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the marketplace, and the temporary marketplace registration could not be removed: ${(error as Error).message}`,
+        );
+      }
+    }
+    throw new Error(`Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the marketplace; no Copilot plugin state was changed.`);
+  }
+  const catalogVersion = new Map((catalog ?? []).map((item) => [item.name, item.version]));
 
   for (const spec of desired) {
     const [name, marketplace] = spec.split("@");
@@ -65,10 +91,7 @@ export async function convergeUserPlugins(
       continue;
     }
     if (!owned.has(spec)) {
-      const latest = catalogVersion.get(name);
-      if (!current.enabled || (latest && current.version && latest !== current.version)) {
-        warnings.push(`${spec} already exists but is not Team AI managed; preserving the user's enabled/version state.`);
-      }
+      warnings.push(`${spec} already exists but is not Team AI managed; preserving the user's enabled/version state.`);
       continue;
     }
     if (!current.enabled) {
@@ -93,5 +116,5 @@ export async function convergeUserPlugins(
     owned.delete(spec);
   }
 
-  return { actions, managedPlugins: [...owned].sort(), warnings };
+  return { actions, catalog, managedPlugins: [...owned].sort(), warnings };
 }

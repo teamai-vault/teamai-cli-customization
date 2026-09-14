@@ -20,6 +20,10 @@ if (args[0] === "--version") {
     state.marketplaces.push({ name: state.marketplaceName, source: args[3] });
     await save();
   }
+} else if (args[0] === "plugins" && args[1] === "marketplace" && args[2] === "remove") {
+  state.marketplaces = state.marketplaces.filter((item) => item.name !== args[3]);
+  state.plugins = state.plugins.filter((item) => item.marketplace !== args[3]);
+  await save();
 } else if (args[0] === "plugins" && args[1] === "marketplace" && args[2] === "browse") {
   json(state.catalog[args[3]] ?? []);
 } else if (args.join(" ") === "plugins list --kind plugin --json") {
