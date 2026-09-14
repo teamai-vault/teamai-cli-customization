@@ -63,6 +63,20 @@ This review covers the current source, tests, READMEs, Git state, recent history
 - Evidence: the validator aggregates structural errors after parsing, but malformed Marketplace or Plugin JSON escapes as an exception rather than a repository-scoped validation message.
 - Disposition: Deferred. Improve when multiple invalid-file diagnostics are needed; current CI still fails loud and cannot report false green.
 
+### CFR-09 — macOS tests compared canonical and symlinked temp paths
+
+- Severity: Medium test defect
+- Repository: `teamai-cli-customization`
+- Evidence: the first real macOS CI run returned canonical `/private/var/...` project identities while test fixtures retained `/var/...`, causing three false failures.
+- Disposition: Fixed. The shared temporary-directory helper now returns its canonical real path, matching the production project-identity boundary.
+
+### CFR-10 — Marketplace test script relied on shell glob expansion
+
+- Severity: Medium portability defect
+- Repository: `teamai-marketplace`
+- Evidence: the first Windows CI run passed the literal `test/*.test.mjs` to Node 20, which could not find that path.
+- Disposition: Fixed. The test script now uses Node's built-in test discovery without a shell glob.
+
 ## No change recommended
 
 - P1.1 MCP: no reviewed shared MCP use case or credential owner exists yet.

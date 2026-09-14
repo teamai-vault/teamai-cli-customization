@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,7 @@ export interface FakeCopilotState {
 }
 
 export async function tempDir(prefix: string): Promise<string> {
-  return await mkdtemp(path.join(os.tmpdir(), prefix));
+  return await realpath(await mkdtemp(path.join(os.tmpdir(), prefix)));
 }
 
 export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Promise<{
