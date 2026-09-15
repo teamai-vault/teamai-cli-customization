@@ -60,11 +60,13 @@ export async function updateCopilotState(
 }
 
 export function registerMarketplaceState(settings: CopilotSettingsFile, name: string, source: string): void {
+  const current = settings.extraKnownMarketplaces?.[name];
+  const { source: _kind, path: _path, url: _url, repo: _repo, ...unknownSource } = current?.source ?? {};
   settings.extraKnownMarketplaces = {
     ...(settings.extraKnownMarketplaces ?? {}),
     [name]: {
-      ...(settings.extraKnownMarketplaces?.[name] ?? {}),
-      ...marketplaceSourceSetting(source),
+      ...(current ?? {}),
+      source: { ...unknownSource, ...marketplaceSourceSetting(source).source },
     },
   };
 }

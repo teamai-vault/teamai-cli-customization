@@ -20,9 +20,9 @@ export async function roleSetCommand(context: CommandContext, role: string): Pro
   if (!current) throw new Error("Team AI is not initialized. Run `team-ai init` first.");
 
   const { catalog, dispose } = await roleCatalog(context, current.marketplace.source, current.marketplace.name, current.managedPlugins ?? []);
-  enabledUserPlugins(role, catalog, current.marketplace.name);
-  const next = { ...current, role };
   try {
+    enabledUserPlugins(role, catalog, current.marketplace.name);
+    const next = { ...current, role };
     const converged = await convergeUserPlugins(context.copilot, next, catalog, {
       dryRun: context.dryRun,
       cwd: context.cwd,

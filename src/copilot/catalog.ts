@@ -4,6 +4,7 @@ import path from "node:path";
 import { runProcess } from "../utils/process.js";
 
 export const TEAM_AI_EXTENSION_NAMESPACE = "com.company.teamai";
+const AGENT_PLUGIN_NAME = /^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]{0,62}[a-z0-9])?$/;
 
 export type TeamAiPluginKind = "common" | "role" | "product";
 
@@ -36,12 +37,12 @@ export async function loadMarketplaceCatalog(source: string, cwd: string): Promi
   try {
     const root = await realpath(materialized.root);
     const manifest = await readJson<MarketplaceManifest>(path.join(root, ".github", "plugin", "marketplace.json"));
-    if (typeof manifest.name !== "string" || manifest.name.length === 0 || !Array.isArray(manifest.plugins)) {
+    if (typeof manifest.name !== "string" || !AGENT_PLUGIN_NAME.test(manifest.name) || !Array.isArray(manifest.plugins)) {
       throw new Error("Marketplace manifest requires name and plugins.");
     }
 
     const plugins = await Promise.all(manifest.plugins.map(async (entry) => {
-      if (typeof entry.name !== "string" || typeof entry.version !== "string" || typeof entry.source !== "string") {
+      if (typeof entry.name !== "string" || !AGENT_PLUGIN_NAME.test(entry.name) || typeof entry.version !== "string" || typeof entry.source !== "string") {
         throw new Error("Marketplace plugin entries require name, version, and source.");
       }
       const pluginRoot = await realpath(path.resolve(root, entry.source));

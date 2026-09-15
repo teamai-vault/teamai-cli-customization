@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import { runCli } from "../../src/cli.js";
 import { readGlobalConfig } from "../../src/config/global.js";
 import { CopilotClient } from "../../src/copilot/cli.js";
-import { copilotConfigPath, copilotSettingsPath, installedPluginsRoot } from "../../src/copilot/user-state.js";
+import { copilotConfigPath, copilotSettingsPath, installedPluginsRoot, registerMarketplaceState } from "../../src/copilot/user-state.js";
 import { createGitRepo, tempDir } from "../helpers/test-utils.js";
 
 async function createMarketplace(): Promise<string> {
@@ -42,7 +42,18 @@ describe("VS Code-only Copilot fallback", () => {
     const settingsPath = copilotSettingsPath(home);
     await mkdir(path.dirname(configPath), { recursive: true });
     await writeFile(configPath, JSON.stringify({ nativeField: "keep", installedPlugins: [{ name: "personal", marketplace: "other", enabled: true, source_sha: "keep" }] }), "utf8");
-    await writeFile(settingsPath, JSON.stringify({ unknownSetting: true, enabledPlugins: { "personal@other": true } }), "utf8");
+    const initialSettings = {
+      unknownSetting: true,
+      enabledPlugins: { "personal@other": true },
+      extraKnownMarketplaces: {
+        "fallback-team-ai": {
+          source: { source: "github", repo: "old/source", nativeField: "keep" },
+          entryField: "keep",
+        },
+      },
+    };
+    registerMarketplaceState(initialSettings, "fallback-team-ai", marketplace);
+    await writeFile(settingsPath, JSON.stringify(initialSettings), "utf8");
     const vscodePath = path.join(home, "Code", "settings.json");
     await mkdir(path.dirname(vscodePath), { recursive: true });
     await writeFile(vscodePath, `{
@@ -90,6 +101,9 @@ describe("VS Code-only Copilot fallback", () => {
       "qa@fallback-team-ai": false,
     });
     expect(copilotSettings.extraKnownMarketplaces["fallback-team-ai"].source.path).toBe(marketplace);
+    expect(copilotSettings.extraKnownMarketplaces["fallback-team-ai"].source.nativeField).toBe("keep");
+    expect(copilotSettings.extraKnownMarketplaces["fallback-team-ai"].source.repo).toBeUndefined();
+    expect(copilotSettings.extraKnownMarketplaces["fallback-team-ai"].entryField).toBe("keep");
     await expect(readFile(path.join(installedPluginsRoot(home), "fallback-team-ai", "qa", "content.txt"), "utf8")).resolves.toBe("qa");
 
     expect(await runCli(["role", "set", "qa"], base)).toBe(0);
@@ -100,8 +114,16 @@ describe("VS Code-only Copilot fallback", () => {
     expect(switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled).toBe(false);
     expect(switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled).toBe(true);
 
-    switchedConfig.installedPlugins = switchedConfig.installedPlugins.filter((item: { name: string }) => item.name !== "qa");
+    switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled = true;
+    delete switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled;
     await writeFile(configPath, JSON.stringify(switchedConfig), "utf8");
+    expect(await runCli(["sync"], base)).toBe(0);
+    const repairedConfig = JSON.parse(await readFile(configPath, "utf8"));
+    expect(repairedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled).toBe(false);
+    expect(repairedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled).toBe(true);
+
+    repairedConfig.installedPlugins = repairedConfig.installedPlugins.filter((item: { name: string }) => item.name !== "qa");
+    await writeFile(configPath, JSON.stringify(repairedConfig), "utf8");
     expect(await runCli(["sync"], base)).toBe(0);
     expect(JSON.parse(await readFile(configPath, "utf8")).installedPlugins.some((item: { name: string }) => item.name === "qa")).toBe(true);
     expect(await runCli(["doctor"], base)).toBe(0);
