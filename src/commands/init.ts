@@ -1,5 +1,6 @@
-import { loadGlobalConfig, writeGlobalConfig } from "../config/global.js";
-import { isRole, ROLES, type Role } from "../config/schema.js";
+import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
+import { createConfig, isRole, ROLES, type Role } from "../config/schema.js";
+import { normalizeMarketplaceSource, resolveMarketplaceConfig } from "../copilot/marketplace.js";
 import { convergeUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, mergeProductPlugin, productPluginName, readProjectSettings, writeProjectSettings } from "../copilot/project-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
@@ -9,35 +10,83 @@ import type { CommandContext } from "./context.js";
 import { printActions, printWarnings } from "./helpers.js";
 
 export interface InitOptions {
+  marketplace?: string;
   role?: string;
   product?: string;
 }
 
 export async function initCommand(context: CommandContext, options: InitOptions): Promise<void> {
-  const source = context.env.TEAM_AI_MARKETPLACE_SOURCE;
-  const config = await loadGlobalConfig(context.homeDir, source);
-  const previousRole = config.role;
-  if (options.role !== undefined) {
-    if (!isRole(options.role)) throw new Error(`Unknown role '${options.role}'. Expected one of: ${ROLES.join(", ")}.`);
-    config.role = options.role as Role;
+  let config = await readGlobalConfig(context.homeDir);
+  let marketplaceAdded = false;
+  const requestedSource = options.marketplace ? normalizeMarketplaceSource(options.marketplace, context.cwd) : undefined;
+
+  if (!config) {
+    if (!requestedSource) {
+      throw new Error("A Marketplace is required for first-time init. Use `team-ai init --marketplace <source> --role <role>`. ");
+    }
+  } else if (requestedSource && requestedSource !== config.marketplace.source) {
+    throw new Error([
+      "A different Marketplace is already configured.",
+      `Current: ${config.marketplace.name} (${config.marketplace.source})`,
+      `Requested: ${requestedSource}`,
+      "Refusing to switch Marketplace during init.",
+    ].join("\n"));
   }
-  if (!config.role) throw new Error("A role is required for first-time init. Use `team-ai init --role <role>`. ");
+
+  if (options.role !== undefined && !isRole(options.role)) {
+    throw new Error(`Unknown role '${options.role}'. Expected one of: ${ROLES.join(", ")}.`);
+  }
+  const requestedRole = options.role as Role | undefined;
+  const effectiveRole = requestedRole ?? config?.role;
+  if (!effectiveRole) throw new Error("A role is required for first-time init. Use `team-ai init --marketplace <source> --role <role>`. ");
+
+  const version = await context.copilot.version();
+  context.out(`Copilot CLI: ${version}`);
+
+  if (!config) {
+    const marketplace = await resolveMarketplaceConfig(context.copilot, requestedSource!, {
+      cwd: context.cwd,
+      dryRun: context.dryRun,
+    });
+    if (!marketplace) {
+      context.out(`WOULD marketplace-add: ${requestedSource}`);
+      context.out("! Marketplace name discovery requires registration; plugin/config/project previews are skipped during first-time dry-run.");
+      return;
+    }
+    config = createConfig(marketplace.config);
+    marketplaceAdded = marketplace.added;
+  }
+
+  const previousRole = config.role;
+  config.role = effectiveRole;
 
   const identity = await detectProjectIdentity(context.cwd);
   if (options.product && !identity) {
     throw new Error("--product requires running team-ai init inside a Git repository.");
   }
+  const productName = options.product ? productPluginName(options.product) : undefined;
 
-  const version = await context.copilot.version();
-  context.out(`Copilot CLI: ${version}`);
   const previousRoleSpec = previousRole && previousRole !== config.role
     ? `role-${previousRole}@${config.marketplace.name}`
     : undefined;
-  const converged = await convergeUserPlugins(context.copilot, config, {
-    dryRun: context.dryRun,
-    cwd: context.cwd,
-    disableSpecs: previousRoleSpec ? [previousRoleSpec] : [],
-  });
+  let converged;
+  try {
+    converged = await convergeUserPlugins(context.copilot, config, {
+      dryRun: context.dryRun,
+      cwd: context.cwd,
+      disableSpecs: previousRoleSpec ? [previousRoleSpec] : [],
+      requiredCatalogPlugin: productName,
+    });
+  } catch (error) {
+    if (marketplaceAdded) {
+      try {
+        await context.copilot.removeMarketplace(config.marketplace.name, context.cwd);
+      } catch (cleanupError) {
+        throw new Error(`${(error as Error).message} Cleanup also failed: ${(cleanupError as Error).message}`);
+      }
+    }
+    throw error;
+  }
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
   config.managedPlugins = converged.managedPlugins;
@@ -45,25 +94,16 @@ export async function initCommand(context: CommandContext, options: InitOptions)
   let productPlugins: string[] = [];
   if (identity) {
     let settings = await readProjectSettings(identity.workspaceRoot);
-    if (options.product) {
-      const productName = productPluginName(options.product);
-      let catalog: Array<{ name: string }> | undefined;
-      try {
-        catalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
-      } catch (error) {
-        if (!context.dryRun) throw error;
-        context.out(`! Product validation skipped in dry-run because ${config.marketplace.name} is not currently browseable; project settings preview was not changed.`);
-      }
-      if (catalog) {
-        if (!catalog.some((item) => item.name === productName)) {
-          throw new Error(`Product plugin ${productName}@${config.marketplace.name} is not present in the marketplace; project settings were not changed.`);
-        }
+    if (options.product && productName) {
+      if (converged.catalogAvailable) {
         const merged = mergeProductPlugin(settings, config.marketplace, options.product);
         if (JSON.stringify(merged) !== JSON.stringify(settings)) {
           context.out(`${context.dryRun ? "WOULD" : "DONE"} write: .github/copilot/settings.json`);
           if (!context.dryRun) await writeProjectSettings(identity.workspaceRoot, merged);
           settings = merged;
         }
+      } else {
+        context.out(`! Product validation skipped in dry-run because ${config.marketplace.name} is not currently browseable; project settings preview was not changed.`);
       }
     }
     productPlugins = enabledProductPlugins(settings, config.marketplace.name);

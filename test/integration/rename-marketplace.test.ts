@@ -18,15 +18,15 @@ describe("rename-marketplace development tool", () => {
       owner: { name: "Team AI" },
       plugins: [],
     }, null, 2), "utf8");
-    await writeFile(path.join(cliRepo, "src", "identity.ts"), [
-      'export const name = "test-marketplace-old";',
-      'export const plugin = "common@test-marketplace-old";',
-      'export const source = "marketplace:test-marketplace-old";',
-      'export const org = "teamai-vault";',
-      'export const repo = "teamai-marketplace";',
-      'export const cli = "teamai-cli-customization";',
+    await writeFile(path.join(marketplaceRepo, "README.md"), [
+      "# Marketplace",
+      "common@test-marketplace-old",
+      "marketplace:test-marketplace-old",
+      "teamai-vault",
+      "teamai-marketplace",
       "",
     ].join("\n"), "utf8");
+    await writeFile(path.join(cliRepo, "src", "identity.ts"), 'export const untouched = "test-marketplace-old";\n', "utf8");
 
     const script = fileURLToPath(new URL("../../scripts/rename-marketplace.mjs", import.meta.url));
     const result = await runProcess(process.execPath, [
@@ -34,7 +34,6 @@ describe("rename-marketplace development tool", () => {
       "--from", "test-marketplace-old",
       "--to", "test-marketplace-new",
       "--display-name", "Payments Platform AI",
-      "--cli-repo", cliRepo,
       "--marketplace-repo", marketplaceRepo,
     ]);
 
@@ -43,12 +42,13 @@ describe("rename-marketplace development tool", () => {
     expect(manifest.name).toBe("test-marketplace-new");
     expect(manifest.owner.name).toBe("Payments Platform AI");
 
-    const identity = await readFile(path.join(cliRepo, "src", "identity.ts"), "utf8");
-    expect(identity).toContain('name = "test-marketplace-new"');
-    expect(identity).toContain("common@test-marketplace-new");
-    expect(identity).toContain("marketplace:test-marketplace-new");
-    expect(identity).toContain("teamai-vault");
-    expect(identity).toContain("teamai-marketplace");
-    expect(identity).toContain("teamai-cli-customization");
+    const marketplaceReadme = await readFile(path.join(marketplaceRepo, "README.md"), "utf8");
+    expect(marketplaceReadme).toContain("common@test-marketplace-new");
+    expect(marketplaceReadme).toContain("marketplace:test-marketplace-new");
+    expect(marketplaceReadme).toContain("teamai-vault");
+    expect(marketplaceReadme).toContain("teamai-marketplace");
+
+    const cliIdentity = await readFile(path.join(cliRepo, "src", "identity.ts"), "utf8");
+    expect(cliIdentity).toContain('untouched = "test-marketplace-old"');
   }, 10_000);
 });

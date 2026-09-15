@@ -11,6 +11,7 @@ export interface InstalledPlugin {
 
 export interface MarketplaceRow {
   name: string;
+  source?: string;
   [key: string]: unknown;
 }
 
@@ -20,8 +21,13 @@ export interface MarketplacePluginRow {
   [key: string]: unknown;
 }
 
-interface PluginListResult {
-  plugins: InstalledPlugin[];
+export interface NativeMcpServer {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface PluginListResult<T> {
+  plugins: T[];
   errors?: unknown[];
 }
 
@@ -53,7 +59,7 @@ export class CopilotClient {
   }
 
   async listPlugins(cwd?: string): Promise<InstalledPlugin[]> {
-    const parsed = this.parseObject<PluginListResult>(
+    const parsed = this.parseObject<PluginListResult<InstalledPlugin>>(
       (await this.exec(["plugins", "list", "--kind", "plugin", "--json"], cwd)).stdout,
       "plugins list",
     );
@@ -64,6 +70,20 @@ export class CopilotClient {
       ...plugin,
       marketplace: plugin.marketplace ?? marketplaceFromSource(plugin.source),
     }));
+  }
+
+  async listMcpServers(cwd?: string): Promise<{ servers: NativeMcpServer[]; errors: string[] }> {
+    const parsed = this.parseObject<PluginListResult<NativeMcpServer>>(
+      (await this.exec(["plugins", "list", "--kind", "mcp", "--json"], cwd)).stdout,
+      "plugins list --kind mcp",
+    );
+    if (!Array.isArray(parsed.plugins) || parsed.plugins.some((server) => !server || typeof server.name !== "string")) {
+      throw new Error("copilot plugins list --kind mcp returned an unexpected JSON shape.");
+    }
+    return {
+      servers: parsed.plugins,
+      errors: (parsed.errors ?? []).map(formatInspectionError),
+    };
   }
 
   async listMarketplaces(cwd?: string): Promise<MarketplaceRow[]> {
@@ -82,6 +102,10 @@ export class CopilotClient {
 
   async addMarketplace(source: string, cwd?: string): Promise<void> {
     await this.exec(["plugins", "marketplace", "add", source], cwd);
+  }
+
+  async removeMarketplace(name: string, cwd?: string): Promise<void> {
+    await this.exec(["plugins", "marketplace", "remove", name], cwd);
   }
 
   async installPlugin(spec: string, cwd?: string): Promise<void> {
@@ -131,4 +155,10 @@ function marketplaceFromSource(source: unknown): string | undefined {
   if (typeof source !== "string") return undefined;
   const match = source.match(/^(?:live-)?marketplace:(.+)$/);
   return match?.[1];
+}
+
+function formatInspectionError(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
+  return JSON.stringify(error);
 }

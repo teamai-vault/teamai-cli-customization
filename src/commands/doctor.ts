@@ -39,17 +39,31 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     fail((error as Error).message);
   }
 
+  if (copilotAvailable) {
+    try {
+      const mcp = await context.copilot.listMcpServers(context.cwd);
+      if (mcp.errors.length > 0) {
+        for (const error of mcp.errors) fail(`Native MCP inspection: ${error}`);
+      } else {
+        ok(`Native MCP inspection: ${mcp.servers.length > 0 ? mcp.servers.map((server) => server.name).join(", ") : "no configured servers"}`);
+      }
+    } catch (error) {
+      fail(`Native MCP inspection failed: ${(error as Error).message}`);
+    }
+    warn("Native Plugin Hook runtime inspection is unavailable; Team AI validates declarations but never executes Hooks.");
+  }
+
   let config;
   try {
     config = await readGlobalConfig(context.homeDir);
-    if (!config) warn("Team AI config is missing. Run `team-ai init --role <role>`. ");
+    if (!config) warn("Team AI config is missing. Run `team-ai init --marketplace <source> --role <role>`. ");
     else if (!config.role) warn("Team AI role is not configured.");
     else ok(`Team AI config: role=${config.role}`);
   } catch (error) {
     fail(`Team AI config is invalid: ${(error as Error).message}`);
   }
 
-  let marketplaceCatalog: { name: string }[] = [];
+  let marketplaceCatalog: { name: string }[] | undefined;
   if (copilotAvailable && config) {
     try {
       const marketplaces = await context.copilot.listMarketplaces(context.cwd);
@@ -84,11 +98,11 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
       ok("Repository Copilot settings are parseable.");
       if (config) {
         const products = enabledProductPlugins(settings, config.marketplace.name);
-        const catalogNames = new Set(marketplaceCatalog.map((item) => item.name));
+        const catalogNames = new Set((marketplaceCatalog ?? []).map((item) => item.name));
         for (const spec of products) {
           const name = spec.split("@")[0];
-          if (marketplaceCatalog.length > 0 && !catalogNames.has(name)) fail(`${spec} is not present in ${config.marketplace.name}.`);
-          else ok(`Product plugin declaration: ${spec}`);
+          if (marketplaceCatalog && !catalogNames.has(name)) fail(`${spec} is not present in ${config.marketplace.name}.`);
+          else if (marketplaceCatalog) ok(`Product plugin declaration: ${spec}`);
         }
       }
     } catch (error) {

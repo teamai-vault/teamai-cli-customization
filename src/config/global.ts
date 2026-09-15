@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { parse, stringify } from "yaml";
 import { atomicWriteText, readTextIfExists } from "../utils/fs.js";
-import { createDefaultConfig, type TeamAiConfig, validateConfig } from "./schema.js";
+import { type TeamAiConfig, validateConfig } from "./schema.js";
 
 export function teamAiHome(homeDir = os.homedir()): string {
   return path.join(homeDir, ".team-ai");
@@ -16,10 +16,6 @@ export async function readGlobalConfig(homeDir = os.homedir()): Promise<TeamAiCo
   const contents = await readTextIfExists(configPath(homeDir));
   if (contents === undefined) return undefined;
   return validateConfig(parse(contents));
-}
-
-export async function loadGlobalConfig(homeDir = os.homedir(), marketplaceSource?: string): Promise<TeamAiConfig> {
-  return (await readGlobalConfig(homeDir)) ?? createDefaultConfig(marketplaceSource);
 }
 
 export async function writeGlobalConfig(config: TeamAiConfig, homeDir = os.homedir()): Promise<void> {
