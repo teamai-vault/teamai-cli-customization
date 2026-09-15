@@ -49,11 +49,11 @@ export async function readCopilotState(homeDir: string): Promise<{ config: Copil
 
 export async function updateCopilotState(
   homeDir: string,
-  update: (config: CopilotConfigFile, settings: CopilotSettingsFile) => void,
+  update: (config: CopilotConfigFile, settings: CopilotSettingsFile) => void | Promise<void>,
 ): Promise<void> {
   await withFileLock(path.join(copilotHome(homeDir), ".team-ai.lock"), async () => {
     const { config, settings } = await readCopilotState(homeDir);
-    update(config, settings);
+    await update(config, settings);
     await atomicWriteJson(copilotConfigPath(homeDir), config);
     await atomicWriteJson(copilotSettingsPath(homeDir), settings);
   });

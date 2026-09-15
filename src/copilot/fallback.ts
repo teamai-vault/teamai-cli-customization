@@ -83,14 +83,16 @@ export class FallbackCopilotClient implements CopilotOperations {
       const plugin = catalog.plugins.find((item) => item.name === name);
       if (!plugin) throw new Error(`${spec} is not present in the Marketplace.`);
       const target = path.join(installedPluginsRoot(this.homeDir), marketplace, name);
-      await replaceDirectory(plugin.root, target);
-      await updateCopilotState(this.homeDir, (config, settings) => upsertInstalledPlugin(config, settings, {
-        name,
-        marketplace,
-        version: plugin.version,
-        cache_path: target,
-        enabled: true,
-      }, this.now().toISOString()));
+      await updateCopilotState(this.homeDir, async (config, settings) => {
+        await replaceDirectory(plugin.root, target);
+        upsertInstalledPlugin(config, settings, {
+          name,
+          marketplace,
+          version: plugin.version,
+          cache_path: target,
+          enabled: true,
+        }, this.now().toISOString());
+      });
     } finally {
       await catalog.dispose();
     }
