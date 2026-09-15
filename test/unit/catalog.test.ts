@@ -4,10 +4,10 @@ import { describe, expect, test } from "vitest";
 import { loadMarketplaceCatalog, TEAM_AI_EXTENSION_NAMESPACE } from "../../src/copilot/catalog.js";
 import { tempDir } from "../helpers/test-utils.js";
 
-async function createMarketplace(roleKind: string = "role"): Promise<string> {
+async function createMarketplace(roleKind: string = "role", marketplaceName = "test-marketplace", roleName = "api"): Promise<string> {
   const root = await tempDir("team-ai-catalog-");
   await mkdir(path.join(root, ".github", "plugin"), { recursive: true });
-  for (const [name, kind] of [["common", "common"], ["api", roleKind]]) {
+  for (const [name, kind] of [["common", "common"], [roleName, roleKind]]) {
     await mkdir(path.join(root, "plugins", name), { recursive: true });
     await writeFile(path.join(root, "plugins", name, "plugin.json"), JSON.stringify({
       name,
@@ -16,8 +16,8 @@ async function createMarketplace(roleKind: string = "role"): Promise<string> {
     }), "utf8");
   }
   await writeFile(path.join(root, ".github", "plugin", "marketplace.json"), JSON.stringify({
-    name: "test-marketplace",
-    plugins: ["common", "api"].map((name) => ({ name, version: "0.1.0", source: `./plugins/${name}` })),
+    name: marketplaceName,
+    plugins: ["common", roleName].map((name) => ({ name, version: "0.1.0", source: `./plugins/${name}` })),
   }), "utf8");
   return root;
 }
@@ -39,5 +39,13 @@ describe("Team AI Marketplace catalog", () => {
     await expect(loadMarketplaceCatalog(root, process.cwd())).rejects.toThrow(
       `extensions.${TEAM_AI_EXTENSION_NAMESPACE}.kind`,
     );
+  });
+
+  test.each([
+    ["invalid Marketplace name", "../escape", "api"],
+    ["invalid plugin name", "test-marketplace", "../escape"],
+  ])("rejects an %s", async (_label, marketplaceName, roleName) => {
+    const root = await createMarketplace("role", marketplaceName, roleName);
+    await expect(loadMarketplaceCatalog(root, process.cwd())).rejects.toThrow();
   });
 });

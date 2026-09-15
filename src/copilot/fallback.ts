@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, realpath, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { loadMarketplaceCatalog, type MarketplaceCatalog } from "./catalog.js";
 import type { CopilotOperations, InstalledPlugin, MarketplacePluginRow, MarketplaceRow, NativeMcpServer } from "./cli.js";
@@ -92,7 +92,7 @@ export class FallbackCopilotClient implements CopilotOperations {
     try {
       const plugin = catalog.plugins.find((item) => item.name === name);
       if (!plugin) throw new Error(`${spec} is not present in the Marketplace.`);
-      const target = path.join(installedPluginsRoot(this.homeDir), marketplace, name);
+      const target = await installTarget(installedPluginsRoot(this.homeDir), marketplace, name);
       await updateCopilotState(this.homeDir, async (config, settings) => {
         await replaceDirectory(plugin.root, target);
         upsertInstalledPlugin(config, settings, {
@@ -144,6 +144,23 @@ function splitSpec(spec: string): [string, string] {
 
 function sourceValue(source: Record<string, string>): string {
   return source.path ?? source.url ?? source.repo ?? "";
+}
+
+async function installTarget(root: string, marketplace: string, plugin: string): Promise<string> {
+  await mkdir(root, { recursive: true });
+  const resolvedRoot = await realpath(root);
+  const marketplaceRoot = path.join(resolvedRoot, marketplace);
+  await mkdir(marketplaceRoot, { recursive: true });
+  const resolvedMarketplace = await realpath(marketplaceRoot);
+  if (isOutside(resolvedRoot, resolvedMarketplace)) throw new Error(`Marketplace install path escapes ${resolvedRoot}.`);
+  const target = path.join(resolvedMarketplace, plugin);
+  if (isOutside(resolvedMarketplace, target)) throw new Error(`Plugin install path escapes ${resolvedMarketplace}.`);
+  return target;
+}
+
+function isOutside(root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
 }
 
 async function replaceDirectory(source: string, target: string): Promise<void> {
