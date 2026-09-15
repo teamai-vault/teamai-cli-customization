@@ -1,6 +1,6 @@
 # Codex First Review
 
-> Review date: 2026-09-15  
+> Review date: 2026-09-15
 > Baseline: `main` at `d7802b5` for the CLI and `60ff5e4` for the Marketplace
 
 This review covers the current source, tests, READMEs, Git state, recent history, `HANDOFF.md`, and `IMPLEMENTATION-PLAN.md` in both repositories. Findings are recorded here even when fixed during the same implementation.
