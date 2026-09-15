@@ -39,7 +39,6 @@ export async function convergeUserPlugins(
     if (!options.dryRun) await client.addMarketplace(config.marketplace.repository, options.cwd);
   }
 
-  let installed = await client.listPlugins(options.cwd);
   let catalog: MarketplacePluginRow[] | undefined;
   try {
     catalog = marketplaceWasRegistered || !options.dryRun
@@ -67,6 +66,7 @@ export async function convergeUserPlugins(
     }
     throw new Error(`Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the marketplace; no Copilot plugin state was changed.`);
   }
+  let installed = await client.listPlugins(options.cwd);
   const catalogVersion = new Map((catalog ?? []).map((item) => [item.name, item.version]));
 
   for (const spec of desired) {

@@ -261,7 +261,7 @@ Test result:
 
 ```text
 8 test files passed
-20 tests passed
+21 tests passed
 ```
 
 Coverage includes:
@@ -286,11 +286,11 @@ Coverage includes:
 
 ```text
 npm run validate PASS
-npm test         PASS (5 tests)
+npm test         PASS (6 tests)
 npm run test:copilot PASS locally on Windows and in Windows/macOS branch CI
 ```
 
-The validator also rejects lexical and symlink/junction Plugin source escapes and Skills without a frontmatter description. The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
+The validator also rejects lexical and symlink/junction Plugin source escapes, internal Plugin content links that escape their Plugin source, and Skills without a frontmatter description. The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
 
 ### Real Copilot E2E
 

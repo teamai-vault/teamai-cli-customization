@@ -25,8 +25,8 @@ This review covers the current source, tests, READMEs, Git state, recent history
 
 - Severity: Medium
 - Repository: `teamai-marketplace`
-- Evidence: the validator first accepted `../outside-plugin`; its initial lexical boundary fix could then be bypassed by an in-repository junction or symlink targeting an external directory.
-- Disposition: Fixed. Local Plugin sources must remain inside the Marketplace repository both lexically and after canonical `realpath` resolution; focused traversal and link-escape tests remain.
+- Evidence: the validator first accepted `../outside-plugin`; its initial lexical boundary fix could then be bypassed by an in-repository junction or symlink targeting an external directory. A later review also found that links in `plugin.json`, `skills/`, or `SKILL.md` could escape an otherwise valid Plugin root.
+- Disposition: Fixed. Local Plugin sources and the capability files read from them must remain inside their canonical ownership boundaries; focused traversal, Plugin-root link, and internal-content link tests remain.
 
 ### CFR-04 — Doctor treated an empty readable catalog as unavailable
 
@@ -104,6 +104,13 @@ This review covers the current source, tests, READMEs, Git state, recent history
 - Repository: `teamai-cli-customization`
 - Evidence: `ConvergeResult` returned the full Marketplace catalog although `init` only needed to know whether it was available.
 - Disposition: Fixed. The result now exposes the minimal `catalogAvailable` boolean.
+
+### CFR-15 — Product validation followed Plugin inspection
+
+- Severity: Medium
+- Repository: `teamai-cli-customization`
+- Evidence: after temporarily registering a Marketplace, convergence called `listPlugins` before checking the required Product catalog. A structured Plugin-list failure could therefore interrupt the Product precondition and leave the temporary registration behind.
+- Disposition: Fixed. Required Product availability is now checked and failure cleanup completes before Plugin listing or mutation; a focused ordering test remains.
 
 ## No change recommended
 
