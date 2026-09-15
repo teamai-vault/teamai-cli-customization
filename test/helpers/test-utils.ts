@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CopilotClient } from "../../src/copilot/cli.js";
+import type { MarketplaceCatalog } from "../../src/copilot/catalog.js";
 import { runProcess } from "../../src/utils/process.js";
 
 export const TEST_MARKETPLACE_NAME = "test-team-ai";
@@ -37,11 +38,11 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
     catalog: initial?.catalog ?? {
       [initial?.marketplaceName ?? TEST_MARKETPLACE_NAME]: [
         { name: "common", version: "0.1.0" },
-        { name: "role-api", version: "0.1.0" },
-        { name: "role-ios", version: "0.1.0" },
-        { name: "role-aos", version: "0.1.0" },
-        { name: "role-qa", version: "0.1.0" },
-        { name: "role-design", version: "0.1.0" },
+        { name: "api", version: "0.1.0" },
+        { name: "ios", version: "0.1.0" },
+        { name: "aos", version: "0.1.0" },
+        { name: "qa", version: "0.1.0" },
+        { name: "design", version: "0.1.0" },
       ],
     },
   };
@@ -51,6 +52,22 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
     client: new CopilotClient(process.execPath, [helperPath, statePath]),
     statePath,
     readState: async () => JSON.parse(await readFile(statePath, "utf8")) as FakeCopilotState,
+  };
+}
+
+export async function loadFakeMarketplace(): Promise<MarketplaceCatalog> {
+  return {
+    name: TEST_MARKETPLACE_NAME,
+    plugins: [
+      { name: "common", version: "0.1.0", kind: "common", root: "common" },
+      { name: "api", version: "0.1.0", kind: "role", root: "api" },
+      { name: "ios", version: "0.1.0", kind: "role", root: "ios" },
+      { name: "aos", version: "0.1.0", kind: "role", root: "aos" },
+      { name: "qa", version: "0.1.0", kind: "role", root: "qa" },
+      { name: "design", version: "0.1.0", kind: "role", root: "design" },
+      { name: "product-teamai", version: "0.1.0", kind: "product", root: "product-teamai" },
+    ],
+    dispose: async () => undefined,
   };
 }
 

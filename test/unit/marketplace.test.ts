@@ -19,7 +19,7 @@ describe("marketplace source handling", () => {
     const fake = await createFakeCopilot({
       marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: `URL: ${TEST_MARKETPLACE_SOURCE}` }],
     });
-    await expect(resolveMarketplaceConfig(fake.client, TEST_MARKETPLACE_SOURCE, {
+    await expect(resolveMarketplaceConfig(fake.client, TEST_MARKETPLACE_SOURCE, TEST_MARKETPLACE_NAME, {
       cwd: process.cwd(),
     })).resolves.toEqual({
       config: {

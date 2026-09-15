@@ -23,6 +23,12 @@ async function run(command, args, cwd = repository) {
   }
 }
 
+async function runCopilot(args) {
+  return process.platform === "win32"
+    ? await run(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "copilot", ...args])
+    : await run("copilot", args);
+}
+
 try {
   runRoot = await mkdtemp(path.join(os.tmpdir(), "team-ai-real-e2e-"));
   const profile = path.join(runRoot, "profile");
@@ -54,13 +60,30 @@ try {
 
   const cli = path.join(cliRoot, "dist", "cli.js");
   await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api", "--product", "teamai"]);
+  await run(process.execPath, [cli, "role", "set", "qa"]);
+  await run(process.execPath, [cli, "sync"]);
+  await run(process.execPath, [cli, "--dry-run", "sync"]);
+  await run(process.execPath, [cli, "status"]);
   await run(process.execPath, [cli, "doctor"]);
 
   const settings = JSON.parse(await readFile(path.join(repository, ".github", "copilot", "settings.json"), "utf8"));
   assert.equal(settings.enabledPlugins["product-teamai@teamai"], true);
   assert.equal(settings.extraKnownMarketplaces.teamai.source.source, "directory");
 
-  console.log(`Real team-ai Product Plugin E2E passed on ${process.platform}.`);
+  const installed = JSON.parse((await runCopilot(["plugins", "list", "--kind", "plugin", "--json"])).stdout).plugins;
+  for (const name of ["common", "api", "ios", "aos", "qa", "design"]) {
+    assert.ok(installed.some((item) => item.name === name), `${name}@teamai should be installed`);
+  }
+  assert.equal(installed.find((item) => item.name === "common").enabled, true);
+  assert.equal(installed.find((item) => item.name === "qa").enabled, true);
+  for (const name of ["api", "ios", "aos", "design"]) {
+    assert.equal(installed.find((item) => item.name === name).enabled, false);
+  }
+
+  const vscodeSettings = JSON.parse(await readFile(path.join(appData, "Code", "User", "settings.json"), "utf8"));
+  assert.equal(vscodeSettings["chat.plugins.marketplaces"][0], marketplaceRoot);
+
+  console.log(`Real team-ai native Copilot E2E passed on ${process.platform}.`);
 } finally {
   if (runRoot) await rm(runRoot, { recursive: true, force: true });
 }

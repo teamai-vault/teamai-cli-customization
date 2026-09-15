@@ -1,6 +1,7 @@
 import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
 import { convergeUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { registerVsCodeMarketplace } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { writeProjectState } from "../project/state.js";
 import type { CommandContext } from "./context.js";
@@ -8,11 +9,24 @@ import { printActions, printWarnings } from "./helpers.js";
 
 export async function syncCommand(context: CommandContext): Promise<void> {
   const config = await readGlobalConfig(context.homeDir);
-  if (!config?.role) throw new Error("Team AI is not initialized. Run `team-ai init --marketplace <source> --role <role>` first.");
+  if (!config?.role) throw new Error("Team AI is not initialized. Run `team-ai init` first.");
 
-  const converged = await convergeUserPlugins(context.copilot, config, { dryRun: context.dryRun, cwd: context.cwd });
+  const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+  if (catalog.name !== config.marketplace.name) {
+    await catalog.dispose();
+    throw new Error(`Configured Marketplace name '${config.marketplace.name}' does not match source manifest '${catalog.name}'.`);
+  }
+  let converged;
+  try {
+    converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, { dryRun: context.dryRun, cwd: context.cwd });
+  } finally {
+    await catalog.dispose();
+  }
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
+  if (await registerVsCodeMarketplace(context.vscodeSettingsPath, config.marketplace.source, context.dryRun)) {
+    context.out(`${context.dryRun ? "WOULD" : "DONE"} write: VS Code User Settings chat.plugins.marketplaces`);
+  }
   const managedChanged = JSON.stringify(config.managedPlugins ?? []) !== JSON.stringify(converged.managedPlugins);
   config.managedPlugins = converged.managedPlugins;
   if (managedChanged && !context.dryRun) await writeGlobalConfig(config, context.homeDir);

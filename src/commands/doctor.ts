@@ -1,12 +1,15 @@
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { readGlobalConfig } from "../config/global.js";
-import { desiredUserPlugins, pluginSpec } from "../copilot/plugins.js";
+import { enabledUserPlugins, pluginSpec, userPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { fallbackStateProblems, marketplaceRegistrationMatches, readCopilotState } from "../copilot/user-state.js";
+import { vscodeMarketplaceIsFirst } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { partitionPath } from "../project/partition.js";
 import { inspectProjectPartitions } from "../project/state.js";
 import { executableVersion } from "../utils/process.js";
+import { readTextIfExists } from "../utils/fs.js";
 import type { CommandContext } from "./context.js";
 
 export interface DoctorResult {
@@ -33,7 +36,7 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
 
   let copilotAvailable = true;
   try {
-    ok(`Copilot CLI: ${await context.copilot.version()}`);
+    ok(`Copilot backend: ${await context.copilot.version()}`);
   } catch (error) {
     copilotAvailable = false;
     fail((error as Error).message);
@@ -63,6 +66,27 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     fail(`Team AI config is invalid: ${(error as Error).message}`);
   }
 
+  if (config) {
+    try {
+      if (vscodeMarketplaceIsFirst(await readTextIfExists(context.vscodeSettingsPath), config.marketplace.source)) {
+        ok("VS Code Marketplace registration is first in chat.plugins.marketplaces.");
+      } else {
+        fail("VS Code Marketplace registration is missing or not first. Run team-ai sync.");
+      }
+      if (context.copilotMode === "fallback") {
+        const { settings } = await readCopilotState(context.homeDir);
+        if (marketplaceRegistrationMatches(settings, config.marketplace.name, config.marketplace.source)) {
+          ok(`Copilot user Marketplace ${config.marketplace.name} is registered.`);
+        } else {
+          fail(`Copilot user Marketplace ${config.marketplace.name} is inconsistent. Run team-ai sync.`);
+        }
+        for (const problem of await fallbackStateProblems(context.homeDir, config.managedPlugins ?? [])) fail(problem);
+      }
+    } catch (error) {
+      fail(`User-level Copilot/VS Code settings diagnostics failed: ${(error as Error).message}`);
+    }
+  }
+
   let marketplaceCatalog: { name: string }[] | undefined;
   if (copilotAvailable && config) {
     try {
@@ -74,12 +98,19 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
         marketplaceCatalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
       }
       if (config.role) {
-        const plugins = await context.copilot.listPlugins(context.cwd);
-        for (const desired of desiredUserPlugins(config.role, config.marketplace.name)) {
-          const row = plugins.find((item) => pluginSpec(item) === desired);
-          if (!row) fail(`${desired} is not installed. Run team-ai sync.`);
-          else if (!row.enabled) fail(`${desired} is disabled. Run team-ai sync.`);
-          else ok(`${desired} is enabled.`);
+        const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+        try {
+          if (catalog.name !== config.marketplace.name) throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
+          const plugins = await context.copilot.listPlugins(context.cwd);
+          const expectedEnabled = new Set(enabledUserPlugins(config.role, catalog.plugins, config.marketplace.name));
+          for (const desired of userPlugins(catalog.plugins, config.marketplace.name)) {
+            const row = plugins.find((item) => pluginSpec(item) === desired);
+            if (!row) fail(`${desired} is not installed. Run team-ai sync.`);
+            else if (row.enabled !== expectedEnabled.has(desired)) fail(`${desired} has incorrect enablement. Run team-ai sync.`);
+            else ok(`${desired} is ${row.enabled ? "enabled" : "installed and disabled"}.`);
+          }
+        } finally {
+          await catalog.dispose();
         }
       }
     } catch (error) {
