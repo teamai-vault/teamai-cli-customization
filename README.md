@@ -2,9 +2,9 @@
 
 [中文](README.zh-CN.md) | English
 
-`team-ai` is a thin, Copilot-native control layer for standardizing shared GitHub Copilot capabilities without introducing a second agent runtime or a custom plugin format.
+`team-ai` is a thin, Copilot-native control layer for shared GitHub Copilot capabilities. It keeps Agent Plugin packages, the department Marketplace, and project-local `.github/*` customization in their native locations instead of introducing another runtime or plugin format.
 
-The CLI is intentionally **independent from any specific department Marketplace**. One company-wide CLI can be used by different departments, while each department owns and maintains its own Copilot Marketplace.
+The CLI is independent from any particular department Marketplace. Each user configures one Marketplace source; departments can maintain their own Marketplace while using the same CLI.
 
 ## Architecture
 
@@ -17,11 +17,14 @@ The CLI is intentionally **independent from any specific department Marketplace*
               Department Marketplace
               .github/plugin/marketplace.json
                          |
-                         | manifest.name
+                         | manifest.name + plugin metadata
                          v
               common@<marketplace>
-              role-<role>@<marketplace>
-              product-*@<marketplace>
+              api@<marketplace>
+              ios@<marketplace>
+              aos@<marketplace>
+              qa@<marketplace>
+              design@<marketplace>
 
 real business repository
   .github/copilot/settings.json
@@ -32,13 +35,13 @@ real business repository
   .github/hooks/
 ```
 
-The CLI does not contain a default department Marketplace. `teamai-vault/teamai-marketplace` is a reference/template Marketplace, not a built-in dependency of the CLI.
+The CLI has no built-in department Marketplace. `teamai-vault/teamai-marketplace` is the reference/template Marketplace used by this workspace, not a CLI dependency.
 
 ## Requirements
 
 - Node.js 20+
 - Git
-- GitHub Copilot CLI available as `copilot`
+- GitHub Copilot CLI available as `copilot` (native backend), or VS Code available as `code` (fallback backend)
 
 ## Development installation
 
@@ -48,49 +51,83 @@ npm run build
 npm link
 ```
 
-## First-time initialization
+## Marketplace and plugin contract
 
-First-time initialization requires an explicit Marketplace source:
+`--marketplace` accepts a native Copilot source: a GitHub `owner/repo` reference, a ref-qualified reference, an HTTP(S)/SSH/git URL, or a local path. Relative local paths are normalized to absolute paths before they are persisted. The manifest name is discovered from the registered Marketplace; users do not provide it separately.
 
-```powershell
-team-ai init `
-  --marketplace https://github.com/example-org/department-ai-marketplace.git `
-  --role api
-```
-
-`--marketplace` is passed to the native Copilot Marketplace registration command. GitHub Copilot CLI `1.0.83` accepts:
+Plugin names are the names published by the Marketplace:
 
 ```text
-owner/repo
-owner/repo#ref
-https://...
-ssh://...
-git@host:owner/repo.git
-local paths
+common
+api
+ios
+aos
+qa
+design
 ```
 
-Full Git URLs are supported and are a good default for internal documentation.
+The plugin name does not encode its kind. The CLI reads the shared metadata namespace `com.company.teamai`:
 
-The user does **not** provide the Marketplace name separately. The CLI registers the source through Copilot, detects the registration key derived from `.github/plugin/marketplace.json`, and persists both values.
+```json
+{
+  "name": "api",
+  "extensions": {
+    "com.company.teamai": {
+      "kind": "role"
+    }
+  }
+}
+```
+
+`kind` is `common`, `role`, or `product`. If the namespace ever changes, update both `TEAM_AI_EXTENSION_NAMESPACE` in the CLI and the `extensions` namespace in every Marketplace `plugin.json`.
+
+## First-time initialization
+
+The four first-time interactive combinations are:
+
+```text
+team-ai init                                             # prompt for Marketplace, then Role
+team-ai init --marketplace <source>                      # prompt for Role
+team-ai init --role api                                  # prompt for Marketplace
+team-ai init --marketplace <source> --role api           # no prompts
+```
+
+In an interactive terminal, the role picker uses the roles exposed by the Marketplace and selects exactly one role. In a non-TTY environment (CI, redirected stdin, or another non-interactive shell), missing values are errors rather than prompts. Supply both values explicitly:
+
+```text
+team-ai init --marketplace <source> --role <role>
+```
+
+Initialization:
+
+1. checks GitHub Copilot CLI and chooses the native backend when it is available;
+2. loads the Marketplace and discovers its manifest name;
+3. registers the source through native Copilot operations when needed;
+4. installs `common` and every `kind: role` plugin in the catalog;
+5. enables only `common` and the selected role;
+6. stores the selected role, Marketplace identity, and explicit Team AI ownership;
+7. optionally validates a Product plugin and declares it in the real repository settings.
+
+Product plugins are not installed at user scope. The current Product path uses the existing `product-*` plugin names (for example `product-teamai`) and enables them through `.github/copilot/settings.json` only after catalog validation.
 
 Example persisted config:
 
 ```yaml
-version: 2
+version: 1
 marketplace:
   name: payments-ai
   source: https://github.com/example-org/payments-ai-marketplace.git
 role: api
 managedPlugins:
   - common@payments-ai
-  - role-api@payments-ai
+  - api@payments-ai
+  - ios@payments-ai
+  - aos@payments-ai
+  - qa@payments-ai
+  - design@payments-ai
 ```
 
-After first-time initialization, normal commands use the persisted Marketplace and do not require `--marketplace` again.
-
-If `--marketplace` is supplied later with a different source, `init` refuses to silently switch Marketplace. Marketplace migration is intentionally outside the current MVP.
-
-Local relative paths are resolved to absolute paths before being persisted so later commands do not depend on the current working directory.
+The config schema is version `1` and uses `marketplace.source` as its only source field. After initialization, normal commands use the saved Marketplace and refuse a different source instead of silently rebinding.
 
 ## Commands
 
@@ -103,66 +140,62 @@ team-ai status
 team-ai doctor
 ```
 
-All write commands support global `--dry-run`.
-
-For first-time `--dry-run`, an unregistered remote Marketplace cannot reveal its manifest-derived name without registration. In that case the CLI truthfully previews the Marketplace add and skips plugin/config/project previews rather than mutating Copilot.
-
-### `team-ai init`
-
-First-time init:
-
-```text
-team-ai init --marketplace <source> --role <role>
-```
-
-It:
-
-1. verifies the Copilot CLI;
-2. registers the supplied Marketplace source through native Copilot commands;
-3. discovers the Marketplace registration key from Copilot;
-4. converges `common@<marketplace>` plus the selected `role-*` plugin;
-5. persists Marketplace source/name, role, and Team AI-owned plugins in `~/.team-ai/config.yaml`;
-6. optionally validates and declares a `product-*` plugin through repository settings.
-
-It does not copy central Skills, Agents, Hooks, or MCP definitions into the project.
+All write commands support the global `--dry-run` option. A first-time dry run can inspect the supplied Marketplace and reports planned Marketplace/plugin/config/project changes without mutating state.
 
 ### `team-ai sync`
 
-`sync` means converge/repair, not resource copying. It reconciles Team AI-owned plugins through the native Copilot plugin manager and refreshes machine state.
+`sync` means convergence and repair. It installs missing Team AI-owned user plugins, restores enablement, refreshes Marketplace registration, updates VS Code Marketplace registration, and refreshes project machine state. It does not copy central Skills, Agents, Instructions, Hooks, or MCP definitions into the project.
 
 ### `team-ai role`
 
 ```text
 team-ai role list
-team-ai role set design
+team-ai role set qa
 ```
 
-Changing role disables only a previous role plugin that Team AI itself owns. A pre-existing user-installed plugin is never silently claimed.
+Changing role keeps all Team AI role plugins installed, enables `common` plus the new role, and disables the other Team AI-owned roles. A pre-existing user-owned plugin is preserved and is never claimed from its name alone.
 
-### `team-ai status` / `team-ai doctor`
+### `team-ai status` and `team-ai doctor`
 
-These inspect the configured Marketplace, plugin state, Copilot-native MCP metadata, project settings, Git project identity, and machine state. Hook declarations are supported by Marketplace validation; Copilot CLI `1.0.83` does not expose installed Hooks through structured inspection. Team AI never starts MCP servers or executes Hooks during diagnostics, and it does not select or merge multiple Marketplaces.
+These commands inspect config, Marketplace/plugin state, native MCP metadata, VS Code registration, project settings, Git identity, and machine state. Hook declarations are validated as Marketplace content, but the CLI does not execute Hooks or pretend that unavailable runtime inspection succeeded.
 
-## Configuration compatibility
+## Native Copilot and VS Code-only fallback
 
-Current config schema is version `2` and uses `marketplace.source`.
+When `copilot` is available, Team AI uses the native command family:
 
-Legacy version `1` configs using:
-
-```yaml
-marketplace:
-  repository: <source>
+```text
+copilot plugins marketplace add ...
+copilot plugins marketplace list --json
+copilot plugins marketplace browse <name> --json
+copilot plugins install ...
+copilot plugins enable ...
+copilot plugins disable ...
+copilot plugins update ...
 ```
 
-are accepted and migrated in memory to version `2`. The next normal config write persists the new shape.
+When Copilot CLI is unavailable but `code` is available, Team AI uses a VS Code-compatible fallback. It reads the same Marketplace/plugin contract, materializes managed plugins into the Copilot-compatible location, and merges Copilot metadata:
 
-## Project model
+```text
+~/.copilot/installed-plugins/<marketplace>/<plugin>
+~/.copilot/config.json
+~/.copilot/settings.json
+```
 
-The real business Git repository is the project scope. Project-specific Copilot customization stays with the code under `.github/*`.
+The fallback writes `installedPlugins` inventory and `enabledPlugins` state, while keeping `settings.json.enabledPlugins` as effective enablement authority and mirroring the inventory flag. Unknown fields and existing `source_sha` values are preserved; fallback-created rows do not calculate a synthetic `source_sha`.
 
-`team-ai init --product payments` validates `product-payments` against the configured Marketplace and read-modify-writes `.github/copilot/settings.json`, preserving unknown fields, unrelated marketplaces, and unrelated plugins.
+## Copilot and VS Code Marketplace registration
 
-## Machine state and Git worktrees
+User-level Copilot registration is represented by `extraKnownMarketplaces` in `~/.copilot/settings.json`. The real Copilot backend lets native Copilot own that update; the fallback merges only the configured Marketplace entry and preserves unknown/native fields.
+
+Team AI also registers the source in VS Code User Settings under `chat.plugins.marketplaces`. The merge is JSONC-safe: comments, trailing commas, unknown settings, and existing entries are preserved, while the configured source is inserted or moved to index `0`.
+
+Product declarations use the real repository file `.github/copilot/settings.json`. Team AI read-modify-writes only the relevant Marketplace/Product entries and preserves unrelated fields, marketplaces, and plugins.
+
+## Ownership and project state
+
+`managedPlugins` is the ownership boundary. Team AI may install, enable, disable, update, or repair only plugins it explicitly installed or claimed during convergence. User-owned and third-party plugin state remains untouched.
+
+The real business Git repository is the Project scope. Project-specific Copilot customization stays in `.github/*`; Project is not a Plugin type. Machine state is partitioned by the stable Git project anchor:
 
 ```text
 ~/.team-ai/
@@ -173,23 +206,9 @@ The real business Git repository is the project scope. Project-specific Copilot 
       state.json
 ```
 
-`workspaceRoot` is the current checkout/worktree. `projectAnchor` is the stable main-worktree identity used for partitioning.
-
-## Reference Marketplace and department templates
-
-`teamai-vault/teamai-marketplace` is maintained as a reference/template Marketplace. A department can clone or derive from that repository, choose its own manifest `name`, maintain its own Common/Role/Product capabilities, and use the same company-wide CLI:
-
-```powershell
-team-ai init `
-  --marketplace https://github.com/example-org/mobile-ai-marketplace.git `
-  --role ios
-```
-
-No CLI fork is required.
-
 ## Marketplace rename utility
 
-The checked-in `scripts/rename-marketplace.mjs` is a **Marketplace maintainer utility**. It renames the logical Marketplace ID inside a Marketplace repository; it does not rename or modify the generic CLI.
+The checked-in `scripts/rename-marketplace.mjs` is a Marketplace maintainer utility. It changes the logical Marketplace ID inside the target Marketplace repository and does not modify the generic CLI or user-owned machine/project state.
 
 ```text
 npm run rename:marketplace -- --from teamai --to payments-platform-ai --dry-run
@@ -206,30 +225,19 @@ npm run typecheck
 npm run test:unit
 npm run test:integration
 npm run test:e2e:copilot
+npm run test:e2e:fallback
 npm test
 ```
 
-Integration tests use a fake Copilot executable plus real temporary Git repositories/worktrees. They are deliberately labeled integration tests, not real Copilot E2E.
-
-After `npm run build`, `npm run test:e2e:copilot` uses the installed real Copilot CLI with an isolated temporary profile and Git repository to validate explicit Marketplace initialization, `--product teamai`, and `doctor` against the sibling Marketplace checkout.
-
-Real Copilot CLI behavior should also be exercised before releases. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the latest validation state.
+The two E2E scripts create isolated temporary profiles and repositories. `test:e2e:copilot` exercises native Copilot; `test:e2e:fallback` exercises the VS Code-only materializer and then checks native Copilot recognition of the materialized state. The latest branch evidence is recorded in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 ## Non-goals
 
-This project does not currently implement:
-
-- a default department Marketplace;
-- multi-Marketplace selection/merge/overlay/precedence;
-- a Marketplace package manager;
-- non-Copilot agent runtimes or IDE adapters;
-- custom Plugin/Skill/Hook/MCP formats;
-- a generic overlay engine;
-- TeamWiki, Recall, Learning, telemetry, or dashboards.
+This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, resource copying/injection, a generic overlay engine, telemetry, dashboards, TeamWiki/Recall/Learning, or a custom Product/Project database.
 
 ## Project documents
 
-- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) — implementation plan derived from the frozen architecture.
-- [`docs/HANDOFF.md`](docs/HANDOFF.md) — current implementation state, validation evidence, remaining issues, and next priorities.
+- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) — current frozen-delta implementation plan and status.
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — current implementation state and validation evidence.
 - [`docs/VERSIONING.md`](docs/VERSIONING.md) — CLI, Marketplace, and Plugin release/version rules.
-- [`docs/codex-first-review.md`](docs/codex-first-review.md) — consolidated implementation review findings and dispositions.
+- [`docs/codex-first-review.md`](docs/codex-first-review.md) — implementation review findings and dispositions.

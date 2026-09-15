@@ -4,13 +4,13 @@
 
 ## 中文
 
-`rename-marketplace.mjs` 是一个 **Marketplace maintainer utility**。它用于给某一个部门自己的 GitHub Copilot Marketplace 改逻辑 ID，例如：
+`rename-marketplace.mjs` 是 Marketplace maintainer utility，用于修改某个部门自己的 GitHub Copilot Marketplace 逻辑 ID，例如：
 
 ```text
 teamai -> payments-platform-ai
 ```
 
-它不会修改通用 `team-ai` CLI。CLI 与部门 Marketplace identity 已经解耦。
+它只修改目标 Marketplace Repo，不修改通用 `team-ai` CLI、用户机器 state 或业务 Repo settings。CLI 与部门 Marketplace identity 解耦。
 
 ### 推荐流程
 
@@ -24,7 +24,7 @@ npm run rename:marketplace -- `
   --dry-run
 ```
 
-确认后执行：
+检查 Git diff 后执行：
 
 ```powershell
 npm run rename:marketplace -- `
@@ -62,21 +62,21 @@ npm run rename:marketplace -- `
 .github/plugin/marketplace.json
 ```
 
-其中 `name` 是当前 Marketplace ID。
-
-脚本只扫描 **目标 Marketplace Repo**，修改其中的独立 Marketplace identity token，例如：
+其中 `name` 是当前 Marketplace ID。脚本只扫描目标 Marketplace Repo，修改独立的 Marketplace identity token，例如：
 
 ```text
 common@teamai
-role-api@teamai
+api@teamai
+ios@teamai
+aos@teamai
+qa@teamai
+design@teamai
 marketplace:teamai
 live-marketplace:teamai
 README 中的命令和示例
 ```
 
-它不会扫描或修改 `teamai-cli-customization`。
-
-它也不会把 Repo/package 名称做全局替换。例如：
+它不会扫描或修改 `teamai-cli-customization`，也不会把 Repo/package 名称做全局替换：
 
 ```text
 teamai-vault
@@ -85,17 +85,9 @@ teamai-marketplace
 
 不会因为 Marketplace ID 改名而被错误修改。
 
-### rollout 后的额外迁移
+### 发布后的人工检查
 
-该脚本只改源码 Repo。如果旧 Marketplace ID 已经被开发者使用，还要单独迁移：
-
-1. Copilot Marketplace registration；
-2. 已安装的 `*@<old-id>` Plugin；
-3. `~/.team-ai/config.yaml`；
-4. `~/.team-ai/projects/*/state.json` 中的旧 Plugin spec（如有）；
-5. 业务 Repo `.github/copilot/settings.json` 中的旧 ID。
-
-所以最好在大规模 rollout 前确定最终 Marketplace 名称。
+该脚本只改源码 Repo。若旧 Marketplace ID 已经被注册或写入用户/业务环境，需要人工分别更新 Copilot registration、已安装 Plugin、`~/.team-ai/`、`~/.copilot/` 和业务 Repo `.github/copilot/settings.json`。脚本不会擅自改动这些外部 state，因此最好在大规模 rollout 前确定最终 Marketplace 名称。
 
 ### 改名后的验证
 
@@ -106,13 +98,24 @@ npm run validate
 npm test
 ```
 
-再使用真实 Copilot CLI 做一次 add / browse / install smoke test。
+CLI Repo：
+
+```powershell
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run build
+npm run test:e2e:copilot
+npm run test:e2e:fallback
+```
+
+最后使用真实 Copilot CLI 做 add / browse / install smoke test，并确认 VS Code Marketplace source 仍在 `chat.plugins.marketplaces` 首位。
 
 ## English
 
-`rename-marketplace.mjs` is a **Marketplace maintainer utility**. It renames the logical Copilot Marketplace ID inside one Marketplace repository.
+`rename-marketplace.mjs` is a Marketplace maintainer utility. It renames the logical Copilot Marketplace ID inside one target Marketplace repository.
 
-It deliberately does **not** modify the generic `team-ai` CLI because CLI identity is independent from department Marketplace identity.
+It deliberately does not modify the generic `team-ai` CLI, user machine state, or business repository settings because CLI identity and department Marketplace identity are separate concerns.
 
 Recommended workflow:
 
@@ -124,7 +127,7 @@ npm run rename:marketplace -- `
   --dry-run
 ```
 
-Then run the same command without `--dry-run`, validate the Marketplace repository, and perform a real Copilot smoke test.
+Inspect the Git diff, then run the real rename:
 
 ```powershell
 npm run rename:marketplace -- `
@@ -133,13 +136,24 @@ npm run rename:marketplace -- `
   --display-name "Payments Platform AI"
 ```
 
-The tool renames Marketplace identity tokens such as `common@teamai`, `role-api@teamai`, `marketplace:teamai`, and `live-marketplace:teamai`.
+Use `--marketplace-repo <path>` when the target is not the default sibling `../teamai-marketplace`.
 
-It deliberately preserves repository/package identities such as `teamai-vault`, `teamai-marketplace`, and `teamai-cli-customization`.
+The tool renames identity tokens such as `common@teamai`, `api@teamai`, `ios@teamai`, `aos@teamai`, `qa@teamai`, `design@teamai`, `marketplace:teamai`, and `live-marketplace:teamai`. It preserves repository/package identities such as `teamai-vault`, `teamai-marketplace`, and `teamai-cli-customization`.
 
-Always run `--dry-run` first, inspect the Git diff, then run typecheck/tests/build after the real rename.
+After a real rename, validate both repositories. For the CLI repository:
 
-This tool changes source repositories only. If the old Marketplace ID has already been deployed to developer machines or business repositories, migrate Copilot registrations, `~/.team-ai/*`, and `.github/copilot/settings.json` separately.
+```text
+npm run typecheck
+npm run test:unit
+npm run test:integration
+npm run build
+npm run test:e2e:copilot
+npm run test:e2e:fallback
+```
+
+The two E2E commands use isolated temporary state. The native check exercises real Copilot; the fallback check hides Copilot CLI, materializes plugins into `~/.copilot/installed-plugins`, merges Copilot metadata, and checks native recognition afterward.
+
+If the old Marketplace ID is already deployed, update Copilot registrations, installed Plugin specs, `~/.team-ai/`, `~/.copilot/`, and `.github/copilot/settings.json` separately. This source-repository utility never changes those external locations.
 
 ## Real Copilot Product E2E
 
@@ -149,4 +163,14 @@ After building the CLI, run:
 npm run test:e2e:copilot
 ```
 
-`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api --product teamai` plus `doctor`, verifies the native repository settings declaration, and removes the temporary state in a `finally` block.
+`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api --product teamai`, switches to `qa`, runs `sync`, `status`, and `doctor`, verifies the native repository settings declaration, checks Common plus one Role enabled and all Roles installed, and removes temporary state in a `finally` block.
+
+## VS Code-only fallback E2E
+
+Run after building the CLI:
+
+```text
+npm run test:e2e:fallback
+```
+
+`smoke-fallback.mjs` hides Copilot CLI from PATH, supplies a VS Code-compatible `code` command, runs initialization/role/sync/doctor against the local Marketplace, verifies `~/.copilot/installed-plugins`, merged `config.json`/`settings.json`, enablement authority, and preservation of user fields, then invokes the real Copilot CLI to verify that the materialized plugins are recognized.
