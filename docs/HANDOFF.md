@@ -2,7 +2,7 @@
 
 > Updated: 2026-09-15
 > Repositories: `teamai-vault/teamai-cli-customization`, `teamai-vault/teamai-marketplace`
-> Current phase: P0 production hardening and first real Product Plugin implemented and branch-CI validated; reviewed team capability rollout next
+> Current phase: P0 and P1.1-P1.3 capability support implemented; branch-CI refresh pending for P1.1/P1.2
 
 ## 1. Current architecture
 
@@ -65,6 +65,8 @@ product-teamai
 
 `product-teamai` is the first real Product Plugin. Its `teamai-change-readiness` Skill applies the same cross-repository validation and release gate to the CLI and Marketplace repositories. Add another `product-*` only when another real cross-repository Product capability exists.
 
+The Marketplace validator supports optional native root `mcp.json` and `com.github.copilot/hooks/hooks.json` declarations. This is capability-type support only: no published Plugin currently contains an MCP server or Hook implementation.
+
 ### `teamai-cli-customization`
 
 Current CLI version: `0.1.1`.
@@ -91,6 +93,8 @@ design
 ```
 
 All write commands support `--dry-run`.
+
+`status` and `doctor` inspect MCP metadata through Copilot's native structured command. Hook declarations are validated in the Marketplace; the CLI does not execute either capability type.
 
 ## 3. Important real Copilot CLI findings
 
@@ -189,6 +193,18 @@ The CLI therefore treats a disabled `live-marketplace:<marketplace>` row as an a
 
 This distinction is important for ownership safety.
 
+### 3.4 MCP inspection is structured; Hook inspection is not yet exposed
+
+On Copilot CLI `1.0.83`, this command returns `{ "plugins": [...], "errors": [...] }` for configured MCP servers:
+
+```text
+copilot plugins list --kind mcp --json
+```
+
+A real isolated user-profile check confirmed a non-empty MCP row with `kind`, `name`, `scope`, `source`, `enabled`, and `description`. Listing metadata did not require Team AI to start the server.
+
+The same CLI's `copilot plugins list --help` explicitly says custom agents and session-scoped Hooks are not covered because they require a live session. Team AI therefore validates Plugin Hook declarations statically and reports runtime inspection as unavailable instead of inventing an inspection mechanism.
+
 ## 4. Plugin ownership rule
 
 `~/.team-ai/config.yaml` records `managedPlugins`.
@@ -261,7 +277,7 @@ Test result:
 
 ```text
 8 test files passed
-21 tests passed
+23 tests passed
 ```
 
 Coverage includes:
@@ -280,17 +296,19 @@ Coverage includes:
 - local Marketplace live-plugin projection ownership;
 - Product Plugin validation before Copilot mutation;
 - user-owned Plugin warning consistency;
-- empty Marketplace catalog Product diagnostics.
+- empty Marketplace catalog Product diagnostics;
+- native MCP structured discovery and error diagnostics;
+- truthful Plugin Hook inspection limitations.
 
 ### Marketplace validation
 
 ```text
 npm run validate PASS
-npm test         PASS (6 tests)
-npm run test:copilot PASS locally on Windows and in Windows/macOS branch CI
+npm test         PASS (10 tests)
+npm run test:copilot PASS locally on Windows; P1.1/P1.2 branch-CI refresh pending
 ```
 
-The validator also rejects lexical and symlink/junction Plugin source escapes, internal Plugin content links that escape their Plugin source, and Skills without a frontmatter description. The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
+The validator also rejects lexical and symlink/junction Plugin source escapes, internal Plugin content links that escape their Plugin source, Skills without a frontmatter description, and unsafe native MCP/Hook declarations. Capability validation covers schema/shape, plugin-relative source visibility, path containment, cross-platform Hook commands, obvious remote download/execute behavior, HTTPS, and committed credential headers. The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
 
 ### Real Copilot E2E
 
@@ -416,6 +434,10 @@ The first runs exposed a macOS canonical temp-path mismatch and a Windows shell-
 
 The Marketplace validator checks the key local structural contracts. It is not yet a full official-schema validation engine. Prefer adopting an official validator/schema tool if GitHub/Agent Plugins provides a stable one rather than maintaining a large custom schema implementation.
 
+### 8.6 Hook runtime inspection
+
+Copilot CLI `1.0.83` does not expose installed/session Hook metadata through `copilot plugins list --json`. Team AI validates Marketplace declarations and counts repository Hook files, but cannot confirm live Hook loading without entering a trusted Copilot session. It does not execute Hooks as a workaround.
+
 ## 9. Deferred work — implementation priority
 
 The following priority deliberately separates **native capability expansion** from **new Team AI subsystems**.
@@ -433,7 +455,9 @@ P0 should happen before adding major new feature families.
 
 #### P1.1 Shared MCP
 
-Status: entry criterion not met. Implement when there is a real internal MCP use case and an owner for credentials/security review.
+Status: capability support and governance implemented. The Marketplace accepts and validates native Agent Plugin `mcp.json`; `team-ai status` and `doctor` inspect native MCP metadata through `copilot plugins list --kind mcp --json`.
+
+No real MCP server was added. A concrete server still requires an internal use case and an owner for credentials/security review.
 
 Preferred design:
 
@@ -446,7 +470,7 @@ Copilot native loading/trust
 
 Do **not** add a Team AI MCP converter/injector.
 
-Before rollout, extend validation/doctor for:
+Implemented validation/doctor coverage:
 
 - declared executable/source visibility;
 - obvious invalid command/path diagnostics;
@@ -457,7 +481,9 @@ Why before Hooks: an MCP gives high reusable value while usually having a cleare
 
 #### P1.2 Shared Hooks
 
-Status: entry criterion not met. No automatic lifecycle command was justified, so no Hook placeholder was added.
+Status: capability support and governance implemented. The Marketplace accepts and validates native `com.github.copilot/hooks/hooks.json`, including source containment, cross-platform command shape, HTTPS, and obvious remote download/execute rejection.
+
+No real Hook was added because no automatic lifecycle command has been justified. Copilot CLI `1.0.83` does not expose structured live Hook inspection, so `status`/`doctor` report that limitation and never execute Hooks to probe them.
 
 Use native:
 
@@ -476,6 +502,18 @@ Because Hooks may execute commands automatically, first add governance checks:
 - security review for any shell/process execution.
 
 Only then add the first real Hook use case.
+
+#### DESIGN DEVIATION — capability support without capability instances
+
+Original design: Defer P1.1/P1.2 until a concrete MCP server or Hook implementation was ready to ship.
+
+Observed behavior: The product requirement is for Team AI to support and govern the native capability types independently from publishing a real MCP server or Hook.
+
+Evidence: Copilot CLI `1.0.83` exposes safe structured MCP discovery, while its own help states that Hooks require a live session and are not covered by structured Plugin inspection. Agent Plugins 1.0 defines root `mcp.json`; Copilot defines `com.github.copilot/hooks/hooks.json`.
+
+Minimal necessary change: Add declaration-only Marketplace validation plus read-only MCP status/doctor inspection and an explicit Hook inspection limitation. Use synthetic fixtures for tests; do not add a production MCP server, Hook, injector, or runtime.
+
+YAGNI impact: Team AI now supports both native capability types without inventing a use case, credentials, lifecycle automation, or execution layer.
 
 #### P1.3 First real Product Plugin
 
@@ -568,15 +606,14 @@ These should require a new design justification, not be added by default.
 ## 10. Recommended next implementation sequence
 
 ```text
-1. Identify owners for reviewed Common/API replacement content
-2. Select one real shared MCP use case and credential/security owner
-3. Add MCP validation/governance + native MCP definition only after step 2
-4. Select one real Hook lifecycle use case and security reviewer
-5. Add Hook governance + native Hook only after step 4
-6. Run the full Product init E2E on a real macOS machine before release
-7. Add contribution/publish PR workflow when manual contribution becomes painful
-8. Integrate LLM Wiki Runtime through a small Skill/MCP
-9. Revisit Learning only after the above is stable
+1. Refresh Windows/macOS branch CI for P1.1/P1.2
+2. Identify owners for reviewed Common/API replacement content
+3. Select one real shared MCP use case and credential/security owner before adding an MCP implementation
+4. Select one real Hook lifecycle use case and security reviewer before adding a Hook implementation
+5. Run the full Product init E2E on a real macOS machine before release
+6. Add contribution/publish PR workflow when manual contribution becomes painful
+7. Integrate LLM Wiki Runtime through a small Skill/MCP
+8. Revisit Learning only after the above is stable
 ```
 
 ## 11. Rules for the next agent

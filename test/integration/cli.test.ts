@@ -255,4 +255,53 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(1);
     expect(output.stdout).toContain(`✗ product-teamai@${MARKETPLACE_NAME} is not present in ${MARKETPLACE_NAME}.`);
   }, 10_000);
+
+  test("status and doctor inspect native MCP without claiming Hook execution", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-capabilities-home-");
+    const fake = await createFakeCopilot({
+      mcpServers: [{ name: "shared-tools", enabled: true, source: "plugin:test-plugin" }],
+    });
+
+    const status = capture();
+    expect(await runCli(["status"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: status.out,
+      err: status.err,
+      env: process.env,
+    })).toBe(0);
+    expect(status.stdout).toContain("  Native MCP servers: shared-tools");
+    expect(status.stdout).toContain("  Native Plugin Hooks: declaration validation only; runtime inspection unavailable");
+
+    const doctor = capture();
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: doctor.out,
+      err: doctor.err,
+      env: process.env,
+    })).toBe(0);
+    expect(doctor.stdout).toContain("✓ Native MCP inspection: shared-tools");
+    expect(doctor.stdout).toContain("! Native Plugin Hook runtime inspection is unavailable; Team AI validates declarations but never executes Hooks.");
+  }, 10_000);
+
+  test("doctor reports native MCP inspection errors", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-mcp-error-home-");
+    const fake = await createFakeCopilot({ mcpErrors: ["broken MCP declaration"] });
+    const output = capture();
+
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: output.out,
+      err: output.err,
+      env: process.env,
+    })).toBe(1);
+    expect(output.stdout).toContain("✗ Native MCP inspection: broken MCP declaration");
+  }, 10_000);
 });

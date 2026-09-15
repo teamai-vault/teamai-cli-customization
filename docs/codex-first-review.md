@@ -112,10 +112,29 @@ This review covers the current source, tests, READMEs, Git state, recent history
 - Evidence: after temporarily registering a Marketplace, convergence called `listPlugins` before checking the required Product catalog. A structured Plugin-list failure could therefore interrupt the Product precondition and leave the temporary registration behind.
 - Disposition: Fixed. Required Product availability is now checked and failure cleanup completes before Plugin listing or mutation; a focused ordering test remains.
 
+### CFR-16 — Native MCP metadata was available but Team AI did not inspect it
+
+- Severity: Medium capability gap
+- Repository: `teamai-cli-customization`
+- Evidence: Copilot CLI `1.0.83` supports `copilot plugins list --kind mcp --json`, including non-empty user-scoped MCP rows, while `status` and `doctor` only inspected Plugin rows.
+- Disposition: Fixed. The Copilot client now uses the verified plural structured command; `status` lists native MCP names and `doctor` fails on structured inspection errors without starting servers.
+
+### CFR-17 — Marketplace validation ignored native MCP and Hook declarations
+
+- Severity: High governance gap
+- Repository: `teamai-marketplace`
+- Evidence: optional root `mcp.json` and `com.github.copilot/hooks/hooks.json` files were not read, so escaped/missing sources, unsafe command shapes, non-HTTPS endpoints, committed credential headers, and hidden download/execute commands could pass CI.
+- Disposition: Fixed. The validator now checks the native declaration locations with synthetic safe/unsafe fixtures. It does not execute either capability type, and no production Plugin instance was added.
+
+### CFR-18 — Copilot CLI does not expose structured Plugin Hook inspection
+
+- Severity: Medium platform limitation
+- Repository: `teamai-cli-customization`
+- Evidence: Copilot CLI `1.0.83` documents in `copilot plugins list --help` that custom agents and session-scoped Hooks are not covered because they require a live session.
+- Disposition: Accepted and surfaced. `status` and `doctor` report declaration-only support/runtime inspection unavailability; Team AI does not execute Hooks to simulate a health check.
+
 ## No change recommended
 
-- P1.1 MCP: no reviewed shared MCP use case or credential owner exists yet.
-- P1.2 Hooks: no reviewed automatic lifecycle action exists yet.
 - Example Common and Role content: no production content owners were identified.
 
-Adding placeholders for these items would increase execution and governance surface without delivering a real capability.
+No production MCP server or Hook implementation is recommended until its use case and security owner exist. Capability support is covered by validation, diagnostics, and synthetic fixtures rather than placeholders.

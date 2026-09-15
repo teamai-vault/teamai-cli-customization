@@ -39,6 +39,20 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     fail((error as Error).message);
   }
 
+  if (copilotAvailable) {
+    try {
+      const mcp = await context.copilot.listMcpServers(context.cwd);
+      if (mcp.errors.length > 0) {
+        for (const error of mcp.errors) fail(`Native MCP inspection: ${error}`);
+      } else {
+        ok(`Native MCP inspection: ${mcp.servers.length > 0 ? mcp.servers.map((server) => server.name).join(", ") : "no configured servers"}`);
+      }
+    } catch (error) {
+      fail(`Native MCP inspection failed: ${(error as Error).message}`);
+    }
+    warn("Native Plugin Hook runtime inspection is unavailable; Team AI validates declarations but never executes Hooks.");
+  }
+
   let config;
   try {
     config = await readGlobalConfig(context.homeDir);

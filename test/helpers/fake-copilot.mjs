@@ -34,6 +34,8 @@ if (args[0] === "--version") {
     })),
     errors: [],
   });
+} else if (args.join(" ") === "plugins list --kind mcp --json") {
+  json({ plugins: state.mcpServers, errors: state.mcpErrors });
 } else if (args[0] === "plugins" && args[1] === "install") {
   const [name, marketplace] = args[2].split("@");
   const existing = state.plugins.find((item) => item.name === name && item.marketplace === marketplace);

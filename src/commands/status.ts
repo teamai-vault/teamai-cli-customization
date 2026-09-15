@@ -32,6 +32,17 @@ export async function statusCommand(context: CommandContext): Promise<void> {
     }
   }
 
+  context.out("");
+  context.out("Copilot-native capabilities");
+  try {
+    const mcp = await context.copilot.listMcpServers(context.cwd);
+    context.out(`  Native MCP servers: ${mcp.servers.length > 0 ? mcp.servers.map((server) => server.name).join(", ") : "none"}`);
+    for (const error of mcp.errors) context.out(`  MCP inspection error: ${error}`);
+  } catch (error) {
+    context.out(`  Native MCP servers: unavailable (${(error as Error).message})`);
+  }
+  context.out("  Native Plugin Hooks: declaration validation only; runtime inspection unavailable");
+
   const identity = await detectProjectIdentity(context.cwd);
   context.out("");
   context.out("Project");

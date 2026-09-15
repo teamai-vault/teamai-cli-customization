@@ -168,11 +168,11 @@ Changing role disables only a previous role plugin that Team AI itself owns. A p
 
 ### `team-ai status`
 
-Read-only summary of global role/plugin state, current Git project identity, product declarations, project-native Copilot customization, and the machine partition.
+Read-only summary of global role/plugin state, Copilot-native MCP discovery, current Git project identity, product declarations, project-native Copilot customization, and the machine partition. Hook declarations are supported by Marketplace validation; Copilot CLI `1.0.83` does not expose installed Hooks through structured inspection.
 
 ### `team-ai doctor`
 
-Read-only diagnostics for Git, Copilot CLI, marketplace/plugin state, repository settings, product declarations, machine-state writability, and stale/orphan project partitions.
+Read-only diagnostics for Git, Copilot CLI, native MCP discovery, marketplace/plugin state, repository settings, product declarations, machine-state writability, and stale/orphan project partitions. It reports the Hook inspection limitation and never starts MCP servers or executes Hooks.
 
 ## Global configuration
 

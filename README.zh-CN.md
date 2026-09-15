@@ -168,11 +168,11 @@ team-ai role set design
 
 ### `team-ai status`
 
-只读展示全局 Role / Plugin 状态、当前 Git Project identity、Product 声明、项目原生 Copilot customization 和 machine partition。
+只读展示全局 Role / Plugin 状态、Copilot 原生 MCP discovery、当前 Git Project identity、Product 声明、项目原生 Copilot customization 和 machine partition。Hook 声明由 Marketplace Validator 支持；Copilot CLI `1.0.83` 暂不提供已安装 Hook 的结构化检查。
 
 ### `team-ai doctor`
 
-只读检查 Git、Copilot CLI、Marketplace / Plugin、repository settings、Product 声明、machine state 可写性以及 stale/orphan partition。
+只读检查 Git、Copilot CLI、原生 MCP discovery、Marketplace / Plugin、repository settings、Product 声明、machine state 可写性以及 stale/orphan partition。它会如实报告 Hook inspection 限制，并且不会启动 MCP Server 或执行 Hook。
 
 ## 全局配置
 
