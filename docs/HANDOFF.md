@@ -2,7 +2,7 @@
 
 > Updated: 2026-09-15
 > Repositories: `teamai-vault/teamai-cli-customization`, `teamai-vault/teamai-marketplace`
-> Current phase: P0 and P1.1-P1.3 capability support implemented; branch-CI refresh pending for P1.1/P1.2
+> Current phase: P0 and P1.1-P1.3 capability support implemented and branch-CI validated
 
 ## 1. Current architecture
 
@@ -305,7 +305,7 @@ Coverage includes:
 ```text
 npm run validate PASS
 npm test         PASS (10 tests)
-npm run test:copilot PASS locally on Windows; P1.1/P1.2 branch-CI refresh pending
+npm run test:copilot PASS locally on Windows and in Windows/macOS branch CI
 ```
 
 The validator also rejects lexical and symlink/junction Plugin source escapes, internal Plugin content links that escape their Plugin source, Skills without a frontmatter description, and unsafe native MCP/Hook declarations. Capability validation covers schema/shape, plugin-relative source visibility, path containment, cross-platform Hook commands, obvious remote download/execute behavior, HTTPS, and committed credential headers. The real Copilot CLI successfully registered and browsed the guide-layout Marketplace and returned all seven plugins, including `product-teamai`. The automated smoke also installed `common@teamai` and verified structured Plugin state through the plural command family.
@@ -423,10 +423,10 @@ The Marketplace contract smoke ran against real Copilot CLI `1.0.83` on macOS Gi
 
 Both repositories contain GitHub Actions workflows for Windows and macOS. The CLI runs install, typecheck, tests, and build. The Marketplace runs validation/tests plus a separate real Copilot CLI `1.0.83` contract smoke with isolated user state.
 
-The branch workflows completed GREEN on both platforms:
+The branch workflows completed GREEN on both platforms. The latest P1.1/P1.2 runs are:
 
-- CLI run `34919860510`: Windows and macOS build/typecheck/tests passed at CLI commit `092d809`.
-- Marketplace run `34920099248`: Windows and macOS validation/tests and real Copilot contract smoke passed at Marketplace commit `9a7af37`.
+- CLI run `34925133160`: Windows and macOS build/typecheck/tests passed at CLI commit `dd50bed`.
+- Marketplace run `34925105930`: Windows and macOS validation/tests and real Copilot contract smoke passed at Marketplace commit `32097cf`.
 
 The first runs exposed a macOS canonical temp-path mismatch and a Windows shell-glob assumption. Both root causes were fixed and retained as portable tests/configuration.
 
@@ -606,14 +606,13 @@ These should require a new design justification, not be added by default.
 ## 10. Recommended next implementation sequence
 
 ```text
-1. Refresh Windows/macOS branch CI for P1.1/P1.2
-2. Identify owners for reviewed Common/API replacement content
-3. Select one real shared MCP use case and credential/security owner before adding an MCP implementation
-4. Select one real Hook lifecycle use case and security reviewer before adding a Hook implementation
-5. Run the full Product init E2E on a real macOS machine before release
-6. Add contribution/publish PR workflow when manual contribution becomes painful
-7. Integrate LLM Wiki Runtime through a small Skill/MCP
-8. Revisit Learning only after the above is stable
+1. Identify owners for reviewed Common/API replacement content
+2. Select one real shared MCP use case and credential/security owner before adding an MCP implementation
+3. Select one real Hook lifecycle use case and security reviewer before adding a Hook implementation
+4. Run the full Product init E2E on a real macOS machine before release
+5. Add contribution/publish PR workflow when manual contribution becomes painful
+6. Integrate LLM Wiki Runtime through a small Skill/MCP
+7. Revisit Learning only after the above is stable
 ```
 
 ## 11. Rules for the next agent
