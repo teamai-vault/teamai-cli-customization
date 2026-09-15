@@ -1,6 +1,4 @@
-export const ROLES = ["api", "ios", "aos", "qa", "design"] as const;
-
-export type Role = (typeof ROLES)[number];
+export type Role = string;
 
 export interface MarketplaceConfig {
   name: string;
@@ -8,19 +6,15 @@ export interface MarketplaceConfig {
 }
 
 export interface TeamAiConfig {
-  version: 2;
+  version: 1;
   marketplace: MarketplaceConfig;
   role?: Role;
   managedPlugins?: string[];
 }
 
-export function isRole(value: string): value is Role {
-  return (ROLES as readonly string[]).includes(value);
-}
-
 export function createConfig(marketplace: MarketplaceConfig): TeamAiConfig {
   return {
-    version: 2,
+    version: 1,
     marketplace,
     managedPlugins: [],
   };
@@ -33,24 +27,22 @@ export function validateConfig(value: unknown): TeamAiConfig {
 
   const candidate = value as {
     version?: unknown;
-    marketplace?: { name?: unknown; source?: unknown; repository?: unknown };
+    marketplace?: { name?: unknown; source?: unknown };
     role?: unknown;
     managedPlugins?: unknown;
   };
 
-  if (candidate.version !== 1 && candidate.version !== 2) {
+  if (candidate.version !== 1) {
     throw new Error(`Unsupported Team AI config version: ${String(candidate.version)}`);
   }
   if (!candidate.marketplace || typeof candidate.marketplace.name !== "string") {
     throw new Error("Team AI config requires marketplace.name.");
   }
-  const source = candidate.version === 1 ? candidate.marketplace.repository : candidate.marketplace.source;
+  const source = candidate.marketplace.source;
   if (typeof source !== "string" || source.length === 0) {
-    throw new Error(candidate.version === 1
-      ? "Team AI config requires marketplace.repository."
-      : "Team AI config requires marketplace.source.");
+    throw new Error("Team AI config requires marketplace.source.");
   }
-  if (candidate.role !== undefined && (typeof candidate.role !== "string" || !isRole(candidate.role))) {
+  if (candidate.role !== undefined && (typeof candidate.role !== "string" || candidate.role.length === 0)) {
     throw new Error(`Invalid role in Team AI config: ${String(candidate.role)}`);
   }
   if (candidate.managedPlugins !== undefined && (!Array.isArray(candidate.managedPlugins) || candidate.managedPlugins.some((item) => typeof item !== "string"))) {
@@ -58,7 +50,7 @@ export function validateConfig(value: unknown): TeamAiConfig {
   }
 
   return {
-    version: 2,
+    version: 1,
     marketplace: {
       name: candidate.marketplace.name,
       source,
