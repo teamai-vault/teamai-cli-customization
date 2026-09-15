@@ -22,8 +22,11 @@ describe("marketplace source handling", () => {
     await expect(resolveMarketplaceConfig(fake.client, TEST_MARKETPLACE_SOURCE, {
       cwd: process.cwd(),
     })).resolves.toEqual({
-      name: TEST_MARKETPLACE_NAME,
-      source: TEST_MARKETPLACE_SOURCE,
+      config: {
+        name: TEST_MARKETPLACE_NAME,
+        source: TEST_MARKETPLACE_SOURCE,
+      },
+      added: false,
     });
   });
 });

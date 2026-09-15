@@ -1,8 +1,9 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../../src/cli.js";
-import { readGlobalConfig } from "../../src/config/global.js";
+import { readGlobalConfig, writeGlobalConfig } from "../../src/config/global.js";
+import { createConfig } from "../../src/config/schema.js";
 import { partitionPath } from "../../src/project/partition.js";
 import { detectProjectIdentity } from "../../src/project/anchors.js";
 import {
@@ -157,6 +158,28 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
   }, 10_000);
 
+  test("warns when an enabled desired plugin remains user-owned", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-enabled-owned-home-");
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+      plugins: [{ name: "role-api", marketplace: TEST_MARKETPLACE_NAME, version: "0.1.0", enabled: true, source: `marketplace:${TEST_MARKETPLACE_NAME}` }],
+    });
+    const output = capture();
+
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: output.out,
+      err: output.err,
+    })).toBe(0);
+
+    expect((await fake.readState()).plugins.find((item) => item.name === "role-api")).toMatchObject({ version: "0.1.0", enabled: true });
+    expect((await readGlobalConfig(home))?.managedPlugins).toEqual([`common@${TEST_MARKETPLACE_NAME}`]);
+    expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
+  }, 10_000);
+
   test("claims disabled live-marketplace projections by installing the desired plugins", async () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-live-marketplace-home-");
@@ -193,13 +216,13 @@ describe("CLI integration with fake Copilot executable", () => {
         [TEST_MARKETPLACE_NAME]: [
           { name: "common", version: "0.1.0" },
           { name: "role-api", version: "0.1.0" },
-          { name: "product-payments", version: "0.1.0" },
+          { name: "product-teamai", version: "0.1.0" },
         ],
       },
     });
     const output = capture();
 
-    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--product", "payments"], {
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--product", "teamai"], {
       cwd: repo,
       homeDir: home,
       copilot: fake.client,
@@ -208,7 +231,7 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(0);
 
     const settings = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8"));
-    expect(settings.enabledPlugins[`product-payments@${TEST_MARKETPLACE_NAME}`]).toBe(true);
+    expect(settings.enabledPlugins[`product-teamai@${TEST_MARKETPLACE_NAME}`]).toBe(true);
     expect(settings.extraKnownMarketplaces[TEST_MARKETPLACE_NAME]).toEqual({
       source: { source: "git", url: TEST_MARKETPLACE_SOURCE },
     });
@@ -218,6 +241,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-product-missing-home-");
     const fake = await createFakeCopilot();
+    const before = await fake.readState();
     const output = capture();
 
     expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--product", "missing"], {
@@ -227,7 +251,87 @@ describe("CLI integration with fake Copilot executable", () => {
       out: output.out,
       err: output.err,
     })).toBe(1);
+    expect(await fake.readState()).toEqual(before);
+    expect(await readGlobalConfig(home)).toBeUndefined();
     await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect(output.stderr.some((line) => line.includes("is not present in the marketplace"))).toBe(true);
+  }, 10_000);
+
+  test("doctor rejects a declared product when a readable catalog is empty", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-empty-catalog-home-");
+    const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
+    config.role = "api";
+    config.managedPlugins = [`common@${TEST_MARKETPLACE_NAME}`, `role-api@${TEST_MARKETPLACE_NAME}`];
+    await writeGlobalConfig(config, home);
+    const settingsPath = path.join(repo, ".github", "copilot", "settings.json");
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    await writeFile(settingsPath, JSON.stringify({
+      enabledPlugins: { [`product-teamai@${TEST_MARKETPLACE_NAME}`]: true },
+    }), "utf8");
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+      plugins: [
+        { name: "common", marketplace: TEST_MARKETPLACE_NAME, version: "0.1.0", enabled: true },
+        { name: "role-api", marketplace: TEST_MARKETPLACE_NAME, version: "0.1.0", enabled: true },
+      ],
+      catalog: { [TEST_MARKETPLACE_NAME]: [] },
+    });
+    const output = capture();
+
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: output.out,
+      err: output.err,
+    })).toBe(1);
+    expect(output.stdout).toContain(`✗ product-teamai@${TEST_MARKETPLACE_NAME} is not present in ${TEST_MARKETPLACE_NAME}.`);
+  }, 10_000);
+
+  test("status and doctor inspect native MCP without claiming Hook execution", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-capabilities-home-");
+    const fake = await createFakeCopilot({
+      mcpServers: [{ name: "shared-tools", enabled: true, source: "plugin:test-plugin" }],
+    });
+
+    const status = capture();
+    expect(await runCli(["status"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: status.out,
+      err: status.err,
+    })).toBe(0);
+    expect(status.stdout).toContain("  Native MCP servers: shared-tools");
+    expect(status.stdout).toContain("  Native Plugin Hooks: declaration validation only; runtime inspection unavailable");
+
+    const doctor = capture();
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: doctor.out,
+      err: doctor.err,
+    })).toBe(0);
+    expect(doctor.stdout).toContain("✓ Native MCP inspection: shared-tools");
+    expect(doctor.stdout).toContain("! Native Plugin Hook runtime inspection is unavailable; Team AI validates declarations but never executes Hooks.");
+  }, 10_000);
+
+  test("doctor reports native MCP inspection errors", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-mcp-error-home-");
+    const fake = await createFakeCopilot({ mcpErrors: ["broken MCP declaration"] });
+    const output = capture();
+
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      out: output.out,
+      err: output.err,
+    })).toBe(1);
+    expect(output.stdout).toContain("✗ Native MCP inspection: broken MCP declaration");
   }, 10_000);
 });

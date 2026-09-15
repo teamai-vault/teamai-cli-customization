@@ -126,4 +126,27 @@ npm run rename:marketplace -- `
 
 Then run the same command without `--dry-run`, validate the Marketplace repository, and perform a real Copilot smoke test.
 
-If the Marketplace has already been rolled out, migrate developer Copilot registrations, `~/.team-ai/*`, and business-repository `.github/copilot/settings.json` separately.
+```powershell
+npm run rename:marketplace -- `
+  --from teamai `
+  --to payments-platform-ai `
+  --display-name "Payments Platform AI"
+```
+
+The tool renames Marketplace identity tokens such as `common@teamai`, `role-api@teamai`, `marketplace:teamai`, and `live-marketplace:teamai`.
+
+It deliberately preserves repository/package identities such as `teamai-vault`, `teamai-marketplace`, and `teamai-cli-customization`.
+
+Always run `--dry-run` first, inspect the Git diff, then run typecheck/tests/build after the real rename.
+
+This tool changes source repositories only. If the old Marketplace ID has already been deployed to developer machines or business repositories, migrate Copilot registrations, `~/.team-ai/*`, and `.github/copilot/settings.json` separately.
+
+## Real Copilot Product E2E
+
+After building the CLI, run:
+
+```text
+npm run test:e2e:copilot
+```
+
+`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api --product teamai` plus `doctor`, verifies the native repository settings declaration, and removes the temporary state in a `finally` block.

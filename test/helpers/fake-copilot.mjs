@@ -20,6 +20,10 @@ if (args[0] === "--version") {
     state.marketplaces.push({ name: state.marketplaceName, source: args[3] });
     await save();
   }
+} else if (args[0] === "plugins" && args[1] === "marketplace" && args[2] === "remove") {
+  state.marketplaces = state.marketplaces.filter((item) => item.name !== args[3]);
+  state.plugins = state.plugins.filter((item) => item.marketplace !== args[3]);
+  await save();
 } else if (args[0] === "plugins" && args[1] === "marketplace" && args[2] === "browse") {
   json(state.catalog[args[3]] ?? []);
 } else if (args.join(" ") === "plugins list --kind plugin --json") {
@@ -30,6 +34,8 @@ if (args[0] === "--version") {
     })),
     errors: [],
   });
+} else if (args.join(" ") === "plugins list --kind mcp --json") {
+  json({ plugins: state.mcpServers, errors: state.mcpErrors });
 } else if (args[0] === "plugins" && args[1] === "install") {
   const [name, marketplace] = args[2].split("@");
   const existing = state.plugins.find((item) => item.name === name && item.marketplace === marketplace);

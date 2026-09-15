@@ -17,6 +17,7 @@ export interface InitOptions {
 
 export async function initCommand(context: CommandContext, options: InitOptions): Promise<void> {
   let config = await readGlobalConfig(context.homeDir);
+  let marketplaceAdded = false;
   const requestedSource = options.marketplace ? normalizeMarketplaceSource(options.marketplace, context.cwd) : undefined;
 
   if (!config) {
@@ -52,7 +53,8 @@ export async function initCommand(context: CommandContext, options: InitOptions)
       context.out("! Marketplace name discovery requires registration; plugin/config/project previews are skipped during first-time dry-run.");
       return;
     }
-    config = createConfig(marketplace);
+    config = createConfig(marketplace.config);
+    marketplaceAdded = marketplace.added;
   }
 
   const previousRole = config.role;
@@ -62,15 +64,29 @@ export async function initCommand(context: CommandContext, options: InitOptions)
   if (options.product && !identity) {
     throw new Error("--product requires running team-ai init inside a Git repository.");
   }
+  const productName = options.product ? productPluginName(options.product) : undefined;
 
   const previousRoleSpec = previousRole && previousRole !== config.role
     ? `role-${previousRole}@${config.marketplace.name}`
     : undefined;
-  const converged = await convergeUserPlugins(context.copilot, config, {
-    dryRun: context.dryRun,
-    cwd: context.cwd,
-    disableSpecs: previousRoleSpec ? [previousRoleSpec] : [],
-  });
+  let converged;
+  try {
+    converged = await convergeUserPlugins(context.copilot, config, {
+      dryRun: context.dryRun,
+      cwd: context.cwd,
+      disableSpecs: previousRoleSpec ? [previousRoleSpec] : [],
+      requiredCatalogPlugin: productName,
+    });
+  } catch (error) {
+    if (marketplaceAdded) {
+      try {
+        await context.copilot.removeMarketplace(config.marketplace.name, context.cwd);
+      } catch (cleanupError) {
+        throw new Error(`${(error as Error).message} Cleanup also failed: ${(cleanupError as Error).message}`);
+      }
+    }
+    throw error;
+  }
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
   config.managedPlugins = converged.managedPlugins;
@@ -78,25 +94,16 @@ export async function initCommand(context: CommandContext, options: InitOptions)
   let productPlugins: string[] = [];
   if (identity) {
     let settings = await readProjectSettings(identity.workspaceRoot);
-    if (options.product) {
-      const productName = productPluginName(options.product);
-      let catalog: Array<{ name: string }> | undefined;
-      try {
-        catalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
-      } catch (error) {
-        if (!context.dryRun) throw error;
-        context.out(`! Product validation skipped in dry-run because ${config.marketplace.name} is not currently browseable; project settings preview was not changed.`);
-      }
-      if (catalog) {
-        if (!catalog.some((item) => item.name === productName)) {
-          throw new Error(`Product plugin ${productName}@${config.marketplace.name} is not present in the marketplace; project settings were not changed.`);
-        }
+    if (options.product && productName) {
+      if (converged.catalogAvailable) {
         const merged = mergeProductPlugin(settings, config.marketplace, options.product);
         if (JSON.stringify(merged) !== JSON.stringify(settings)) {
           context.out(`${context.dryRun ? "WOULD" : "DONE"} write: .github/copilot/settings.json`);
           if (!context.dryRun) await writeProjectSettings(identity.workspaceRoot, merged);
           settings = merged;
         }
+      } else {
+        context.out(`! Product validation skipped in dry-run because ${config.marketplace.name} is not currently browseable; project settings preview was not changed.`);
       }
     }
     productPlugins = enabledProductPlugins(settings, config.marketplace.name);

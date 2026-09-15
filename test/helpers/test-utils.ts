@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,11 +12,13 @@ export interface FakeCopilotState {
   marketplaceName: string;
   marketplaces: Array<{ name: string; source?: string }>;
   plugins: Array<{ name: string; marketplace?: string; version?: string; enabled: boolean; source?: string }>;
+  mcpServers: Array<{ name: string; enabled?: boolean; source?: string }>;
+  mcpErrors: unknown[];
   catalog: Record<string, Array<{ name: string; version: string }>>;
 }
 
 export async function tempDir(prefix: string): Promise<string> {
-  return await mkdtemp(path.join(os.tmpdir(), prefix));
+  return await realpath(await mkdtemp(path.join(os.tmpdir(), prefix)));
 }
 
 export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Promise<{
@@ -30,6 +32,8 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
     marketplaceName: initial?.marketplaceName ?? TEST_MARKETPLACE_NAME,
     marketplaces: initial?.marketplaces ?? [],
     plugins: initial?.plugins ?? [],
+    mcpServers: initial?.mcpServers ?? [],
+    mcpErrors: initial?.mcpErrors ?? [],
     catalog: initial?.catalog ?? {
       [initial?.marketplaceName ?? TEST_MARKETPLACE_NAME]: [
         { name: "common", version: "0.1.0" },

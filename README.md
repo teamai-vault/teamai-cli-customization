@@ -21,6 +21,7 @@ The CLI is intentionally **independent from any specific department Marketplace*
                          v
               common@<marketplace>
               role-<role>@<marketplace>
+              product-*@<marketplace>
 
 real business repository
   .github/copilot/settings.json
@@ -140,7 +141,7 @@ Changing role disables only a previous role plugin that Team AI itself owns. A p
 
 ### `team-ai status` / `team-ai doctor`
 
-These inspect the configured Marketplace, plugin state, project settings, Git project identity, and machine state. They do not select or merge multiple Marketplaces.
+These inspect the configured Marketplace, plugin state, Copilot-native MCP metadata, project settings, Git project identity, and machine state. Hook declarations are supported by Marketplace validation; Copilot CLI `1.0.83` does not expose installed Hooks through structured inspection. Team AI never starts MCP servers or executes Hooks during diagnostics, and it does not select or merge multiple Marketplaces.
 
 ## Configuration compatibility
 
@@ -204,10 +205,15 @@ npm run build
 npm run typecheck
 npm run test:unit
 npm run test:integration
+npm run test:e2e:copilot
 npm test
 ```
 
-Fake Copilot integration tests are not described as real E2E. Real Copilot behavior is validated separately; see [`docs/HANDOFF.md`](docs/HANDOFF.md).
+Integration tests use a fake Copilot executable plus real temporary Git repositories/worktrees. They are deliberately labeled integration tests, not real Copilot E2E.
+
+After `npm run build`, `npm run test:e2e:copilot` uses the installed real Copilot CLI with an isolated temporary profile and Git repository to validate explicit Marketplace initialization, `--product teamai`, and `doctor` against the sibling Marketplace checkout.
+
+Real Copilot CLI behavior should also be exercised before releases. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the latest validation state.
 
 ## Non-goals
 
@@ -223,5 +229,7 @@ This project does not currently implement:
 
 ## Project documents
 
-- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
-- [`docs/HANDOFF.md`](docs/HANDOFF.md)
+- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) — implementation plan derived from the frozen architecture.
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — current implementation state, validation evidence, remaining issues, and next priorities.
+- [`docs/VERSIONING.md`](docs/VERSIONING.md) — CLI, Marketplace, and Plugin release/version rules.
+- [`docs/codex-first-review.md`](docs/codex-first-review.md) — consolidated implementation review findings and dispositions.

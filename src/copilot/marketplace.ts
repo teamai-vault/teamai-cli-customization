@@ -22,10 +22,10 @@ export async function resolveMarketplaceConfig(
   client: CopilotClient,
   source: string,
   options: { cwd: string; dryRun?: boolean },
-): Promise<MarketplaceConfig | undefined> {
+): Promise<{ config: MarketplaceConfig; added: boolean } | undefined> {
   const before = await client.listMarketplaces(options.cwd);
   const existing = before.filter((item) => marketplaceRowMatchesSource(item, source));
-  if (existing.length === 1) return { name: existing[0].name, source };
+  if (existing.length === 1) return { config: { name: existing[0].name, source }, added: false };
   if (existing.length > 1) {
     throw new Error(`Marketplace source '${source}' matches multiple existing Copilot registrations.`);
   }
@@ -38,5 +38,5 @@ export async function resolveMarketplaceConfig(
   if (added.length !== 1) {
     throw new Error(`Could not uniquely discover the Marketplace name after registering '${source}'.`);
   }
-  return { name: added[0].name, source };
+  return { config: { name: added[0].name, source }, added: true };
 }

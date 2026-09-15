@@ -21,6 +21,7 @@ CLI 与任何具体部门的 Marketplace **明确解耦**。公司可以统一�
                          v
               common@<marketplace>
               role-<role>@<marketplace>
+              product-*@<marketplace>
 
 真实业务 Repository
   .github/copilot/settings.json
@@ -144,7 +145,7 @@ team-ai role set design
 
 ### `team-ai status` / `team-ai doctor`
 
-检查当前已配置 Marketplace、Plugin 状态、Repository settings、Git project identity 与 machine state。当前不会做多个 Marketplace 的选择、merge、overlay 或 precedence。
+检查当前已配置 Marketplace、Plugin 状态、Copilot 原生 MCP metadata、Repository settings、Git project identity 与 machine state。Hook 声明由 Marketplace Validator 支持；Copilot CLI `1.0.83` 暂不提供已安装 Hook 的结构化检查。诊断不会启动 MCP Server 或执行 Hook，也不会选择或合并多个 Marketplace。
 
 ## 配置兼容
 
@@ -216,10 +217,15 @@ npm run build
 npm run typecheck
 npm run test:unit
 npm run test:integration
+npm run test:e2e:copilot
 npm test
 ```
 
-Fake Copilot integration 不会被描述成真实 E2E。真实 Copilot 验证记录见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
+Integration tests 使用 fake Copilot executable，但会实际创建临时 Git Repo / worktree。因此它们明确属于 integration，不会被描述成真实 Copilot E2E。
+
+先执行 `npm run build`，再运行 `npm run test:e2e:copilot`，会使用已安装的真实 Copilot CLI、隔离的临时 profile/Git Repo 与 sibling Marketplace checkout，验证显式 Marketplace 初始化、`--product teamai` 及 `doctor`。
+
+Release 前还应使用真实 Copilot CLI 验证。最新验证情况见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
 
 ## 当前明确不做
 
@@ -233,5 +239,7 @@ Fake Copilot integration 不会被描述成真实 E2E。真实 Copilot 验证记
 
 ## 项目文档
 
-- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
-- [`docs/HANDOFF.md`](docs/HANDOFF.md)
+- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)：根据冻结架构整理的正式 Implementation Plan。
+- [`docs/HANDOFF.md`](docs/HANDOFF.md)：当前实现状态、验证证据、遗留问题与后续优先级。
+- [`docs/VERSIONING.md`](docs/VERSIONING.md)：CLI、Marketplace 与 Plugin 的发布/版本规则。
+- [`docs/codex-first-review.md`](docs/codex-first-review.md)：统一的实现审查发现与处置状态。
