@@ -1,6 +1,6 @@
 import type { TeamAiConfig } from "../config/schema.js";
 import type { CatalogPlugin } from "./catalog.js";
-import type { CopilotClient, InstalledPlugin } from "./cli.js";
+import type { CopilotOperations, InstalledPlugin } from "./cli.js";
 
 export interface PlannedAction {
   kind: "marketplace-add" | "plugin-install" | "plugin-enable" | "plugin-update" | "plugin-disable";
@@ -36,7 +36,7 @@ export function pluginSpec(plugin: Pick<InstalledPlugin, "name" | "marketplace">
 }
 
 export async function convergeUserPlugins(
-  client: CopilotClient,
+  client: CopilotOperations,
   config: TeamAiConfig,
   catalog: CatalogPlugin[],
   options: { dryRun?: boolean; cwd?: string; requiredCatalogPlugin?: string } = {},

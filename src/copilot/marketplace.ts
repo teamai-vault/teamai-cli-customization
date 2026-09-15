@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { MarketplaceConfig } from "../config/schema.js";
-import type { CopilotClient, MarketplaceRow } from "./cli.js";
+import type { CopilotOperations, MarketplaceRow } from "./cli.js";
 
 export function normalizeMarketplaceSource(source: string, cwd: string): string {
   if (/^[A-Za-z]:[\\/]/.test(source) || source.startsWith("/") || source.startsWith("./") || source.startsWith("../") || source.startsWith(".\\") || source.startsWith("..\\")) {
@@ -19,7 +19,7 @@ export function marketplaceRowMatchesSource(row: MarketplaceRow, source: string)
 }
 
 export async function resolveMarketplaceConfig(
-  client: CopilotClient,
+  client: CopilotOperations,
   source: string,
   marketplaceName: string,
   options: { cwd: string; dryRun?: boolean },

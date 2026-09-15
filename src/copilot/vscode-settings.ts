@@ -18,9 +18,7 @@ export function vscodeSettingsPath(homeDir: string, platform: NodeJS.Platform = 
 
 export function mergeVsCodeMarketplace(contents: string | undefined, source: string): string {
   const original = contents?.trim() ? contents : "{}\n";
-  const errors: ParseError[] = [];
-  const settings = parse(original, errors, { allowTrailingComma: true, disallowComments: false }) as Record<string, unknown> | undefined;
-  if (errors.length > 0 || !settings || Array.isArray(settings)) throw new Error("VS Code User Settings contains invalid JSONC.");
+  const settings = parseSettings(original);
   const current = settings[MARKETPLACES_KEY];
   if (current !== undefined && (!Array.isArray(current) || current.some((item) => typeof item !== "string"))) {
     throw new Error(`VS Code User Settings ${MARKETPLACES_KEY} must be an array of strings.`);
@@ -35,6 +33,18 @@ export function mergeVsCodeMarketplace(contents: string | undefined, source: str
     return applyEdits(moved, modify(moved, [MARKETPLACES_KEY, 0], source, options));
   }
   return applyEdits(original, modify(original, [MARKETPLACES_KEY, 0], source, { ...options, isArrayInsertion: true }));
+}
+
+export function vscodeMarketplaceIsFirst(contents: string | undefined, source: string): boolean {
+  if (!contents?.trim()) return false;
+  return (parseSettings(contents)[MARKETPLACES_KEY] as unknown[] | undefined)?.[0] === source;
+}
+
+function parseSettings(contents: string): Record<string, unknown> {
+  const errors: ParseError[] = [];
+  const settings = parse(contents, errors, { allowTrailingComma: true, disallowComments: false }) as Record<string, unknown> | undefined;
+  if (errors.length > 0 || !settings || Array.isArray(settings)) throw new Error("VS Code User Settings contains invalid JSONC.");
+  return settings;
 }
 
 export async function registerVsCodeMarketplace(

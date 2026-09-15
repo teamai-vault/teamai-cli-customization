@@ -3,6 +3,7 @@ import { createConfig } from "../config/schema.js";
 import { normalizeMarketplaceSource, resolveMarketplaceConfig } from "../copilot/marketplace.js";
 import { convergeUserPlugins, enabledUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, mergeProductPlugin, productPluginName, readProjectSettings, writeProjectSettings } from "../copilot/project-settings.js";
+import { registerVsCodeMarketplace } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { partitionPath } from "../project/partition.js";
 import { writeProjectState } from "../project/state.js";
@@ -82,6 +83,9 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     printActions(converged.actions, context.dryRun, context.out);
     printWarnings(converged.warnings, context.out);
     config.managedPlugins = converged.managedPlugins;
+    if (await registerVsCodeMarketplace(context.vscodeSettingsPath, source, context.dryRun)) {
+      context.out(`${context.dryRun ? "WOULD" : "DONE"} write: VS Code User Settings chat.plugins.marketplaces`);
+    }
 
     let productPlugins: string[] = [];
     if (identity) {

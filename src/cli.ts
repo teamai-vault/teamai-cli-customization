@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
-import { createCommandContext, type CommandContext } from "./commands/context.js";
+import { createCommandContext, resolveCopilotBackend, type CommandContext } from "./commands/context.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { roleListCommand, roleSetCommand } from "./commands/role.js";
@@ -51,6 +51,7 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
   }
 
   try {
+    await resolveCopilotBackend(context);
     switch (args[0]) {
       case "init":
         await initCommand(context, {

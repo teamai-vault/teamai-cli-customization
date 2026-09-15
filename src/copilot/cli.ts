@@ -7,6 +7,7 @@ export interface InstalledPlugin {
   enabled: boolean;
   source?: unknown;
   installedFrom?: unknown;
+  cache_path?: string;
 }
 
 export interface MarketplaceRow {
@@ -31,7 +32,23 @@ interface PluginListResult<T> {
   errors?: unknown[];
 }
 
-export class CopilotClient {
+export interface CopilotOperations {
+  version(): Promise<string>;
+  listPlugins(cwd?: string): Promise<InstalledPlugin[]>;
+  listMcpServers(cwd?: string): Promise<{ servers: NativeMcpServer[]; errors: string[] }>;
+  listMarketplaces(cwd?: string): Promise<MarketplaceRow[]>;
+  browseMarketplace(name: string, cwd?: string): Promise<MarketplacePluginRow[]>;
+  addMarketplace(source: string, cwd?: string): Promise<void>;
+  removeMarketplace(name: string, cwd?: string): Promise<void>;
+  installPlugin(spec: string, cwd?: string): Promise<void>;
+  enablePlugin(spec: string, cwd?: string): Promise<void>;
+  disablePlugin(spec: string, cwd?: string): Promise<void>;
+  updatePlugin(spec: string, cwd?: string): Promise<void>;
+}
+
+export class CopilotUnavailableError extends Error {}
+
+export class CopilotClient implements CopilotOperations {
   constructor(
     private readonly executable = "copilot",
     private readonly prefixArgs: string[] = [],
@@ -43,7 +60,7 @@ export class CopilotClient {
       result = await runProcess(this.executable, [...this.prefixArgs, ...args], { cwd });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new Error("GitHub Copilot CLI is not installed or is not available on PATH.");
+        throw new CopilotUnavailableError("GitHub Copilot CLI is not installed or is not available on PATH.");
       }
       throw error;
     }

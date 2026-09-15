@@ -1,6 +1,7 @@
 import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
 import { convergeUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { registerVsCodeMarketplace } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { writeProjectState } from "../project/state.js";
 import type { CommandContext } from "./context.js";
@@ -23,6 +24,9 @@ export async function syncCommand(context: CommandContext): Promise<void> {
   }
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
+  if (await registerVsCodeMarketplace(context.vscodeSettingsPath, config.marketplace.source, context.dryRun)) {
+    context.out(`${context.dryRun ? "WOULD" : "DONE"} write: VS Code User Settings chat.plugins.marketplaces`);
+  }
   const managedChanged = JSON.stringify(config.managedPlugins ?? []) !== JSON.stringify(converged.managedPlugins);
   config.managedPlugins = converged.managedPlugins;
   if (managedChanged && !context.dryRun) await writeGlobalConfig(config, context.homeDir);
