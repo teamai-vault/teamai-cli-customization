@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { readGlobalConfig } from "../config/global.js";
-import { desiredUserPlugins, pluginSpec } from "../copilot/plugins.js";
+import { enabledUserPlugins, pluginSpec, userPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { partitionPath } from "../project/partition.js";
@@ -74,13 +74,17 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
         marketplaceCatalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
       }
       if (config.role) {
+        const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+        if (catalog.name !== config.marketplace.name) throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
         const plugins = await context.copilot.listPlugins(context.cwd);
-        for (const desired of desiredUserPlugins(config.role, config.marketplace.name)) {
+        const expectedEnabled = new Set(enabledUserPlugins(config.role, catalog.plugins, config.marketplace.name));
+        for (const desired of userPlugins(catalog.plugins, config.marketplace.name)) {
           const row = plugins.find((item) => pluginSpec(item) === desired);
           if (!row) fail(`${desired} is not installed. Run team-ai sync.`);
-          else if (!row.enabled) fail(`${desired} is disabled. Run team-ai sync.`);
-          else ok(`${desired} is enabled.`);
+          else if (row.enabled !== expectedEnabled.has(desired)) fail(`${desired} has incorrect enablement. Run team-ai sync.`);
+          else ok(`${desired} is ${row.enabled ? "enabled" : "installed and disabled"}.`);
         }
+        await catalog.dispose();
       }
     } catch (error) {
       fail(`Copilot plugin diagnostics failed: ${(error as Error).message}`);

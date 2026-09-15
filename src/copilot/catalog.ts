@@ -54,7 +54,7 @@ export async function loadMarketplaceCatalog(source: string, cwd: string): Promi
       if (kind !== "common" && kind !== "role" && kind !== "product") {
         throw new Error(`${entry.name}: plugin.json requires extensions.${TEAM_AI_EXTENSION_NAMESPACE}.kind (common, role, or product).`);
       }
-      return { name: entry.name, version: entry.version, kind, root: pluginRoot };
+      return { name: entry.name, version: entry.version, kind: kind as TeamAiPluginKind, root: pluginRoot };
     }));
 
     if (plugins.filter((plugin) => plugin.kind === "common").length !== 1) {

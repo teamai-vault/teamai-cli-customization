@@ -64,7 +64,7 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
         return 0;
       case "role":
         if (args[1] === "list") {
-          roleListCommand(context);
+          await roleListCommand(context);
           return 0;
         }
         if (args[1] === "set" && args[2]) {

@@ -21,22 +21,29 @@ export function marketplaceRowMatchesSource(row: MarketplaceRow, source: string)
 export async function resolveMarketplaceConfig(
   client: CopilotClient,
   source: string,
+  marketplaceName: string,
   options: { cwd: string; dryRun?: boolean },
-): Promise<{ config: MarketplaceConfig; added: boolean } | undefined> {
+): Promise<{ config: MarketplaceConfig; added: boolean }> {
   const before = await client.listMarketplaces(options.cwd);
   const existing = before.filter((item) => marketplaceRowMatchesSource(item, source));
-  if (existing.length === 1) return { config: { name: existing[0].name, source }, added: false };
+  if (existing.length === 1) {
+    if (existing[0].name !== marketplaceName) {
+      throw new Error(`Marketplace source '${source}' is registered as '${existing[0].name}', not '${marketplaceName}'.`);
+    }
+    return { config: { name: marketplaceName, source }, added: false };
+  }
   if (existing.length > 1) {
     throw new Error(`Marketplace source '${source}' matches multiple existing Copilot registrations.`);
   }
-  if (options.dryRun) return undefined;
+  if (before.some((item) => item.name === marketplaceName)) {
+    throw new Error(`Marketplace name '${marketplaceName}' is already registered from a different source.`);
+  }
+  if (options.dryRun) return { config: { name: marketplaceName, source }, added: true };
 
-  const beforeNames = new Set(before.map((item) => item.name));
   await client.addMarketplace(source, options.cwd);
   const after = await client.listMarketplaces(options.cwd);
-  const added = after.filter((item) => !beforeNames.has(item.name));
-  if (added.length !== 1) {
-    throw new Error(`Could not uniquely discover the Marketplace name after registering '${source}'.`);
+  if (!after.some((item) => item.name === marketplaceName)) {
+    throw new Error(`Marketplace '${marketplaceName}' was not visible after registering '${source}'.`);
   }
-  return { config: { name: added[0].name, source }, added: true };
+  return { config: { name: marketplaceName, source }, added: true };
 }

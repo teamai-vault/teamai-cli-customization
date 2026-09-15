@@ -1,5 +1,6 @@
-import type { Role, TeamAiConfig } from "../config/schema.js";
-import type { CopilotClient, InstalledPlugin, MarketplacePluginRow } from "./cli.js";
+import type { TeamAiConfig } from "../config/schema.js";
+import type { CatalogPlugin } from "./catalog.js";
+import type { CopilotClient, InstalledPlugin } from "./cli.js";
 
 export interface PlannedAction {
   kind: "marketplace-add" | "plugin-install" | "plugin-enable" | "plugin-update" | "plugin-disable";
@@ -13,8 +14,21 @@ export interface ConvergeResult {
   warnings: string[];
 }
 
-export function desiredUserPlugins(role: Role, marketplaceName: string): string[] {
-  return [`common@${marketplaceName}`, `role-${role}@${marketplaceName}`];
+export function userPlugins(catalog: CatalogPlugin[], marketplaceName: string): string[] {
+  return catalog
+    .filter((plugin) => plugin.kind === "common" || plugin.kind === "role")
+    .map((plugin) => `${plugin.name}@${marketplaceName}`);
+}
+
+export function enabledUserPlugins(role: string, catalog: CatalogPlugin[], marketplaceName: string): string[] {
+  const common = catalog.find((plugin) => plugin.kind === "common");
+  const selected = catalog.find((plugin) => plugin.kind === "role" && plugin.name === role);
+  if (!common) throw new Error("Marketplace does not contain a Team AI common plugin.");
+  if (!selected) {
+    const roles = catalog.filter((plugin) => plugin.kind === "role").map((plugin) => plugin.name);
+    throw new Error(`Unknown role '${role}'. Expected one of: ${roles.join(", ")}.`);
+  }
+  return [`${common.name}@${marketplaceName}`, `${selected.name}@${marketplaceName}`];
 }
 
 export function pluginSpec(plugin: Pick<InstalledPlugin, "name" | "marketplace">): string {
@@ -24,97 +38,60 @@ export function pluginSpec(plugin: Pick<InstalledPlugin, "name" | "marketplace">
 export async function convergeUserPlugins(
   client: CopilotClient,
   config: TeamAiConfig,
-  options: { dryRun?: boolean; cwd?: string; disableSpecs?: string[]; requiredCatalogPlugin?: string } = {},
+  catalog: CatalogPlugin[],
+  options: { dryRun?: boolean; cwd?: string; requiredCatalogPlugin?: string } = {},
 ): Promise<ConvergeResult> {
-  if (!config.role) throw new Error("No Team AI role is configured. Run `team-ai init --marketplace <source> --role <role>` first.");
+  if (!config.role) throw new Error("No Team AI role is configured. Run `team-ai init` first.");
+  if (options.requiredCatalogPlugin && !catalog.some((item) => item.name === options.requiredCatalogPlugin && item.kind === "product")) {
+    throw new Error(`Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the Marketplace.`);
+  }
 
   const actions: PlannedAction[] = [];
   const warnings: string[] = [];
-  const desired = desiredUserPlugins(config.role, config.marketplace.name);
+  const installSpecs = userPlugins(catalog, config.marketplace.name);
+  const enabledSpecs = new Set(enabledUserPlugins(config.role, catalog, config.marketplace.name));
   const owned = new Set(config.managedPlugins ?? []);
   const marketplaces = await client.listMarketplaces(options.cwd);
-  const marketplaceWasRegistered = marketplaces.some((item) => item.name === config.marketplace.name);
-  if (!marketplaceWasRegistered) {
+  if (!marketplaces.some((item) => item.name === config.marketplace.name)) {
     actions.push({ kind: "marketplace-add", target: config.marketplace.source });
     if (!options.dryRun) await client.addMarketplace(config.marketplace.source, options.cwd);
   }
 
-  let catalog: MarketplacePluginRow[] | undefined;
-  try {
-    catalog = marketplaceWasRegistered || !options.dryRun
-      ? await client.browseMarketplace(config.marketplace.name, options.cwd)
-      : undefined;
-  } catch (error) {
-    if (!marketplaceWasRegistered && !options.dryRun) {
-      try {
-        await client.removeMarketplace(config.marketplace.name, options.cwd);
-      } catch (cleanupError) {
-        throw new Error(`${(error as Error).message} Cleanup also failed: ${(cleanupError as Error).message}`);
-      }
-    }
-    throw error;
-  }
-  if (options.requiredCatalogPlugin && catalog && !catalog.some((item) => item.name === options.requiredCatalogPlugin)) {
-    if (!marketplaceWasRegistered) {
-      try {
-        await client.removeMarketplace(config.marketplace.name, options.cwd);
-      } catch (error) {
-        throw new Error(
-          `Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the marketplace, and the temporary marketplace registration could not be removed: ${(error as Error).message}`,
-        );
-      }
-    }
-    throw new Error(`Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the marketplace; no Copilot plugin state was changed.`);
-  }
   let installed = await client.listPlugins(options.cwd);
-  const catalogVersion = new Map((catalog ?? []).map((item) => [item.name, item.version]));
-
-  for (const spec of desired) {
+  for (const spec of installSpecs) {
     const [name, marketplace] = spec.split("@");
-    const current = installed.find((item) => item.name === name && item.marketplace === marketplace);
-    if (!current) {
+    let current = installed.find((item) => item.name === name && item.marketplace === marketplace);
+    if (!current || (!owned.has(spec) && current.enabled === false && current.source === `live-marketplace:${marketplace}`)) {
       actions.push({ kind: "plugin-install", target: spec });
       owned.add(spec);
       if (!options.dryRun) {
         await client.installPlugin(spec, options.cwd);
         installed = await client.listPlugins(options.cwd);
+        current = installed.find((item) => item.name === name && item.marketplace === marketplace);
+        if (!current) throw new Error(`${spec} was not visible after installation.`);
+      } else {
+        current = { name, marketplace, version: catalog.find((plugin) => plugin.name === name)?.version, enabled: true };
       }
-      continue;
-    }
-    if (!owned.has(spec) && current.enabled === false && current.source === `live-marketplace:${marketplace}`) {
-      actions.push({ kind: "plugin-install", target: spec });
-      owned.add(spec);
-      if (!options.dryRun) {
-        await client.installPlugin(spec, options.cwd);
-        installed = await client.listPlugins(options.cwd);
-      }
-      continue;
-    }
-    if (!owned.has(spec)) {
+    } else if (!owned.has(spec)) {
       warnings.push(`${spec} already exists but is not Team AI managed; preserving the user's enabled/version state.`);
       continue;
     }
-    if (!current.enabled) {
+
+    const shouldEnable = enabledSpecs.has(spec);
+    if (shouldEnable && current?.enabled === false) {
       actions.push({ kind: "plugin-enable", target: spec });
       if (!options.dryRun) await client.enablePlugin(spec, options.cwd);
+    } else if (!shouldEnable && current?.enabled !== false) {
+      actions.push({ kind: "plugin-disable", target: spec });
+      if (!options.dryRun) await client.disablePlugin(spec, options.cwd);
     }
-    const latest = catalogVersion.get(name);
-    if (latest && current.version && latest !== current.version) {
+
+    const latest = catalog.find((plugin) => plugin.name === name)?.version;
+    if (latest && current?.version && latest !== current.version) {
       actions.push({ kind: "plugin-update", target: spec });
       if (!options.dryRun) await client.updatePlugin(spec, options.cwd);
     }
   }
 
-  for (const spec of options.disableSpecs ?? []) {
-    if (!owned.has(spec) || desired.includes(spec)) continue;
-    const [name, marketplace] = spec.split("@");
-    const current = installed.find((item) => item.name === name && item.marketplace === marketplace);
-    if (current?.enabled) {
-      actions.push({ kind: "plugin-disable", target: spec });
-      if (!options.dryRun) await client.disablePlugin(spec, options.cwd);
-    }
-    owned.delete(spec);
-  }
-
-  return { actions, catalogAvailable: catalog !== undefined, managedPlugins: [...owned].sort(), warnings };
+  return { actions, catalogAvailable: true, managedPlugins: [...owned].sort(), warnings };
 }

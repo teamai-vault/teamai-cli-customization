@@ -8,9 +8,19 @@ import { printActions, printWarnings } from "./helpers.js";
 
 export async function syncCommand(context: CommandContext): Promise<void> {
   const config = await readGlobalConfig(context.homeDir);
-  if (!config?.role) throw new Error("Team AI is not initialized. Run `team-ai init --marketplace <source> --role <role>` first.");
+  if (!config?.role) throw new Error("Team AI is not initialized. Run `team-ai init` first.");
 
-  const converged = await convergeUserPlugins(context.copilot, config, { dryRun: context.dryRun, cwd: context.cwd });
+  const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+  if (catalog.name !== config.marketplace.name) {
+    await catalog.dispose();
+    throw new Error(`Configured Marketplace name '${config.marketplace.name}' does not match source manifest '${catalog.name}'.`);
+  }
+  let converged;
+  try {
+    converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, { dryRun: context.dryRun, cwd: context.cwd });
+  } finally {
+    await catalog.dispose();
+  }
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
   const managedChanged = JSON.stringify(config.managedPlugins ?? []) !== JSON.stringify(converged.managedPlugins);

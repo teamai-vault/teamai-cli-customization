@@ -1,5 +1,5 @@
 import { readGlobalConfig } from "../config/global.js";
-import { desiredUserPlugins, pluginSpec } from "../copilot/plugins.js";
+import { pluginSpec } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { partitionPath } from "../project/partition.js";
@@ -20,9 +20,9 @@ export async function statusCommand(context: CommandContext): Promise<void> {
     try {
       const marketplaces = await context.copilot.listMarketplaces(context.cwd);
       context.out(`  Marketplace registered: ${marketplaces.some((item) => item.name === config.marketplace.name) ? "yes" : "no"}`);
-      if (config.role) {
+      if (config.managedPlugins?.length) {
         const plugins = await context.copilot.listPlugins(context.cwd);
-        for (const desired of desiredUserPlugins(config.role, config.marketplace.name)) {
+        for (const desired of config.managedPlugins) {
           const row = plugins.find((item) => pluginSpec(item) === desired);
           context.out(`  ${desired}: ${row ? (row.enabled ? "enabled" : "disabled") : "missing"}`);
         }
