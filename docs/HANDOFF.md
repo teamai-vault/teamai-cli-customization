@@ -407,8 +407,8 @@ Both repositories contain GitHub Actions workflows for Windows and macOS. The CL
 
 The branch workflows completed GREEN on both platforms:
 
-- CLI run `34893443628`: Windows and macOS build/typecheck/tests passed.
-- Marketplace run `34893445246`: Windows and macOS validation/tests and real Copilot contract smoke passed.
+- CLI run `34919860510`: Windows and macOS build/typecheck/tests passed at CLI commit `092d809`.
+- Marketplace run `34919860379`: Windows and macOS validation/tests and real Copilot contract smoke passed at Marketplace commit `dea92e4`.
 
 The first runs exposed a macOS canonical temp-path mismatch and a Windows shell-glob assumption. Both root causes were fixed and retained as portable tests/configuration.
 
