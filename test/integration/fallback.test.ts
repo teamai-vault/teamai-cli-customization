@@ -115,7 +115,7 @@ describe("VS Code-only Copilot fallback", () => {
     expect(switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled).toBe(true);
 
     switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled = true;
-    switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled = false;
+    delete switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled;
     await writeFile(configPath, JSON.stringify(switchedConfig), "utf8");
     expect(await runCli(["sync"], base)).toBe(0);
     const repairedConfig = JSON.parse(await readFile(configPath, "utf8"));

@@ -78,7 +78,7 @@ export async function convergeUserPlugins(
     }
 
     const shouldEnable = enabledSpecs.has(spec);
-    const mirrorOutOfSync = typeof current?.mirroredEnabled === "boolean" && current.mirroredEnabled !== shouldEnable;
+    const mirrorOutOfSync = current !== undefined && "mirroredEnabled" in current && current.mirroredEnabled !== shouldEnable;
     if (shouldEnable && (current?.enabled === false || mirrorOutOfSync)) {
       actions.push({ kind: "plugin-enable", target: spec });
       if (!options.dryRun) await client.enablePlugin(spec, options.cwd);
