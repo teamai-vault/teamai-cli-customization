@@ -55,9 +55,10 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
   };
 }
 
-export async function loadFakeMarketplace(): Promise<MarketplaceCatalog> {
+export async function loadFakeMarketplace(root = path.join(os.tmpdir(), "team-ai-fake-marketplace-without-instructions")): Promise<MarketplaceCatalog> {
   return {
     name: TEST_MARKETPLACE_NAME,
+    root,
     plugins: [
       { name: "common", version: "0.1.0", kind: "common", root: "common" },
       { name: "api", version: "0.1.0", kind: "role", root: "api" },

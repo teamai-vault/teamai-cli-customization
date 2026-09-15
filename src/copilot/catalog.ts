@@ -17,6 +17,7 @@ export interface CatalogPlugin {
 
 export interface MarketplaceCatalog {
   name: string;
+  root: string;
   plugins: CatalogPlugin[];
   dispose: () => Promise<void>;
 }
@@ -64,7 +65,7 @@ export async function loadMarketplaceCatalog(source: string, cwd: string): Promi
     if (!plugins.some((plugin) => plugin.kind === "role")) {
       throw new Error("Marketplace must contain at least one Team AI role plugin.");
     }
-    return { name: manifest.name, plugins, dispose: materialized.dispose };
+    return { name: manifest.name, root, plugins, dispose: materialized.dispose };
   } catch (error) {
     await materialized.dispose();
     throw error;

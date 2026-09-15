@@ -401,4 +401,115 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(1);
     expect(output.stdout).toContain("✗ Native MCP inspection: broken MCP declaration");
   }, 10_000);
+
+  test("init mirrors nested user instructions byte-for-byte and preserves personal files", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-init-home-");
+    const marketplace = await tempDir("team-ai-instructions-init-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(path.join(source, "git"), { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), Buffer.from("global\r\n\0", "utf8"));
+    await writeFile(path.join(source, "git", "commit.instructions.md"), "commit rules\n", "utf8");
+    const personalPath = path.join(home, ".copilot", "instructions", "personal.instructions.md");
+    const rootPersonalPath = path.join(home, ".copilot", "copilot-instructions.md");
+    await mkdir(path.dirname(personalPath), { recursive: true });
+    await writeFile(personalPath, "personal\n", "utf8");
+    await writeFile(rootPersonalPath, "root personal\n", "utf8");
+    const fake = await createFakeCopilot();
+    const output = capture();
+
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+      out: output.out,
+      err: output.err,
+    })).toBe(0);
+
+    const target = path.join(home, ".copilot", "instructions", "team-ai");
+    expect(await readFile(path.join(target, "global.instructions.md"))).toEqual(Buffer.from("global\r\n\0", "utf8"));
+    expect(await readFile(path.join(target, "git", "commit.instructions.md"), "utf8")).toBe("commit rules\n");
+    expect(await readFile(personalPath, "utf8")).toBe("personal\n");
+    expect(await readFile(rootPersonalPath, "utf8")).toBe("root personal\n");
+    expect(output.stdout).toContain("DONE create: ~/.copilot/instructions/team-ai/global.instructions.md");
+    expect(output.stdout.join("\n")).not.toContain("commit rules");
+  }, 15_000);
+
+  test("sync converges changes and dry-run performs no instruction writes", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-sync-home-");
+    const marketplace = await tempDir("team-ai-instructions-sync-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "v1\n", "utf8");
+    const fake = await createFakeCopilot();
+    const loadMarketplace = async () => loadFakeMarketplace(marketplace);
+    const base = { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace };
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], { ...base, ...capture() })).toBe(0);
+
+    const target = path.join(home, ".copilot", "instructions", "team-ai");
+    await writeFile(path.join(source, "global.instructions.md"), "v2\n", "utf8");
+    await writeFile(path.join(source, "nested.instructions.md"), "new body\n", "utf8");
+    await writeFile(path.join(target, "global.instructions.md"), "local edit\n", "utf8");
+    const dry = capture();
+    expect(await runCli(["--dry-run", "sync"], { ...base, out: dry.out, err: dry.err })).toBe(0);
+    expect(await readFile(path.join(target, "global.instructions.md"), "utf8")).toBe("local edit\n");
+    expect(await readFile(path.join(target, "nested.instructions.md")).catch((error: NodeJS.ErrnoException) => error.code)).toBe("ENOENT");
+    expect(dry.stdout).toContain("WOULD update: ~/.copilot/instructions/team-ai/global.instructions.md");
+    expect(dry.stdout).not.toContain("new body");
+
+    const actual = capture();
+    expect(await runCli(["sync"], { ...base, out: actual.out, err: actual.err })).toBe(0);
+    expect(await readFile(path.join(target, "global.instructions.md"), "utf8")).toBe("v2\n");
+    expect(await readFile(path.join(target, "nested.instructions.md"), "utf8")).toBe("new body\n");
+  }, 20_000);
+
+  test("status and doctor report current and stale managed instructions", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-doctor-home-");
+    const marketplace = await tempDir("team-ai-instructions-doctor-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "global\n", "utf8");
+    const fake = await createFakeCopilot();
+    const loadMarketplace = async () => loadFakeMarketplace(marketplace);
+    const base = { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace };
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], { ...base, ...capture() })).toBe(0);
+
+    const status = capture();
+    expect(await runCli(["status"], { ...base, out: status.out, err: status.err })).toBe(0);
+    expect(status.stdout.some((line) => line.includes("User instructions: 1 managed, current"))).toBe(true);
+
+    await writeFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "modified\n", "utf8");
+    const doctor = capture();
+    expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(0);
+    expect(doctor.stdout.some((line) => line.includes("Managed user instructions: stale"))).toBe(true);
+
+    const staleStatus = capture();
+    expect(await runCli(["status"], { ...base, out: staleStatus.out, err: staleStatus.err })).toBe(0);
+    expect(staleStatus.stdout.some((line) => line.includes("User instructions: stale"))).toBe(true);
+  }, 20_000);
+
+  test("sync keeps installed instructions when Marketplace acquisition fails", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-failure-home-");
+    const marketplace = await tempDir("team-ai-instructions-failure-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "keep me\n", "utf8");
+    const fake = await createFakeCopilot();
+    const base = { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace: async () => loadFakeMarketplace(marketplace) };
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], { ...base, ...capture() })).toBe(0);
+
+    const failingOutput = capture();
+    expect(await runCli(["sync"], {
+      ...base,
+      loadMarketplace: async () => { throw new Error("Marketplace acquisition failed"); },
+      out: failingOutput.out,
+      err: failingOutput.err,
+    })).toBe(1);
+    expect(await readFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "utf8")).toBe("keep me\n");
+    expect(failingOutput.stderr.some((line) => line.includes("Marketplace acquisition failed"))).toBe(true);
+  }, 15_000);
 });

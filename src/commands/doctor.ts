@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { readGlobalConfig } from "../config/global.js";
 import { enabledUserPlugins, pluginSpec, userPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { checkUserInstructionState, discoverMarketplaceUserInstructions, userInstructionTargetRoot } from "../copilot/user-instructions.js";
 import { fallbackStateProblems, marketplaceRegistrationMatches, readCopilotState } from "../copilot/user-state.js";
 import { vscodeMarketplaceIsFirst } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
@@ -15,6 +16,31 @@ import type { CommandContext } from "./context.js";
 export interface DoctorResult {
   errors: number;
   warnings: number;
+}
+
+async function reportManagedUserInstructions(
+  catalogRoot: string,
+  homeDir: string,
+  ok: (message: string) => void,
+  warn: (message: string) => void,
+  fail: (message: string) => void,
+): Promise<void> {
+  try {
+    const desired = await discoverMarketplaceUserInstructions(catalogRoot);
+    const state = await checkUserInstructionState(desired, userInstructionTargetRoot(homeDir));
+    if (state.current) {
+      ok(`Managed user instructions: current (${state.desiredCount})`);
+      return;
+    }
+    const missing = state.changes.filter((change) => change.type === "create").length;
+    const stale = state.changes.filter((change) => change.type === "remove").length;
+    if (missing > 0 && stale === 0) warn(`Managed user instructions: ${missing} missing. Run team-ai sync.`);
+    else if (stale > 0 && missing === 0) warn("Managed user instructions: stale managed files present. Run team-ai sync.");
+    else warn("Managed user instructions: stale. Run team-ai sync.");
+    if (!state.targetWritable) fail("Managed user instruction target is not writable; cannot repair with team-ai sync.");
+  } catch (error) {
+    fail(`Marketplace user instructions could not be read: ${(error as Error).message}`);
+  }
 }
 
 export async function doctorCommand(context: CommandContext): Promise<DoctorResult> {
@@ -101,6 +127,7 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
         const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
         try {
           if (catalog.name !== config.marketplace.name) throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
+          await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
           const plugins = await context.copilot.listPlugins(context.cwd);
           const expectedEnabled = new Set(enabledUserPlugins(config.role, catalog.plugins, config.marketplace.name));
           for (const desired of userPlugins(catalog.plugins, config.marketplace.name)) {
@@ -112,9 +139,33 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
         } finally {
           await catalog.dispose();
         }
+      } else {
+        const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+        try {
+          if (catalog.name !== config.marketplace.name) throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
+          await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
+        } finally {
+          await catalog.dispose();
+        }
       }
     } catch (error) {
       fail(`Copilot plugin diagnostics failed: ${(error as Error).message}`);
+    }
+  }
+
+  if (!copilotAvailable && config) {
+    try {
+      const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+      try {
+        if (catalog.name !== config.marketplace.name) {
+          throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
+        }
+        await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
+      } finally {
+        await catalog.dispose();
+      }
+    } catch (error) {
+      fail(`Marketplace user instructions could not be read: ${(error as Error).message}`);
     }
   }
 

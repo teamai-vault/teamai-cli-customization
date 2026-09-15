@@ -81,6 +81,16 @@ Plugin 名称不再编码 kind。CLI 读取统一的 metadata namespace `com.com
 
 `kind` 取 `common`、`role` 或 `product`。如果未来必须修改 namespace，必须同时更新 CLI 中的 `TEAM_AI_EXTENSION_NAMESPACE` 常量，以及所有 Marketplace `plugin.json` 的 `extensions` namespace。
 
+## Marketplace 管理的用户级 Instructions
+
+Marketplace 可以选择性提供任意层级的原生 Copilot instruction 文件：
+
+```text
+user-instructions/**/*.instructions.md
+```
+
+`team-ai init` 和 `team-ai sync` 会按原始字节将这些文件镜像到受 Team AI 管理的用户级目录 `~/.copilot/instructions/team-ai/`，并保留相对路径。该目录属于 Team AI；个人 instructions 应放在 `~/.copilot/instructions/` 下的其他位置。文件名和目录名只用于组织内容，Team AI 不赋予 company、department、role 或 action 语义，Copilot 原生 frontmatter 也不会被改写。
+
 ## 第一次初始化
 
 首次初始化支持四种交互组合：

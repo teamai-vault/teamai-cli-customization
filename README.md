@@ -81,6 +81,16 @@ The plugin name does not encode its kind. The CLI reads the shared metadata name
 
 `kind` is `common`, `role`, or `product`. If the namespace ever changes, update both `TEAM_AI_EXTENSION_NAMESPACE` in the CLI and the `extensions` namespace in every Marketplace `plugin.json`.
 
+## Marketplace-managed user instructions
+
+An optional Marketplace `user-instructions/` directory may contain native Copilot instruction files at any depth:
+
+```text
+user-instructions/**/*.instructions.md
+```
+
+`team-ai init` and `team-ai sync` mirror those files byte-for-byte into the managed user-level directory `~/.copilot/instructions/team-ai/`, preserving relative paths. The directory is Team AI-owned; keep personal instructions elsewhere under `~/.copilot/instructions/`. File and folder names only organize content—Team AI does not assign company, department, role, or action semantics, and native Copilot frontmatter remains unchanged.
+
 ## First-time initialization
 
 The four first-time interactive combinations are:

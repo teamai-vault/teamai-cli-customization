@@ -3,12 +3,13 @@ import { createConfig } from "../config/schema.js";
 import { normalizeMarketplaceSource, resolveMarketplaceConfig } from "../copilot/marketplace.js";
 import { convergeUserPlugins, enabledUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, mergeProductPlugin, productPluginName, readProjectSettings, writeProjectSettings } from "../copilot/project-settings.js";
+import { convergeMarketplaceUserInstructions } from "../copilot/user-instructions.js";
 import { registerVsCodeMarketplace } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { partitionPath } from "../project/partition.js";
 import { writeProjectState } from "../project/state.js";
 import type { CommandContext } from "./context.js";
-import { printActions, printWarnings } from "./helpers.js";
+import { printActions, printUserInstructionActions, printWarnings } from "./helpers.js";
 
 export interface InitOptions {
   marketplace?: string;
@@ -64,12 +65,14 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     const productName = options.product ? productPluginName(options.product) : undefined;
 
     let converged;
+    let userInstructions;
     try {
       converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, {
         dryRun: context.dryRun,
         cwd: context.cwd,
         requiredCatalogPlugin: productName,
       });
+      userInstructions = await convergeMarketplaceUserInstructions(catalog.root, context.homeDir, { dryRun: context.dryRun });
     } catch (error) {
       if (marketplaceAdded && !context.dryRun) {
         try {
@@ -82,6 +85,7 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     }
     printActions(converged.actions, context.dryRun, context.out);
     printWarnings(converged.warnings, context.out);
+    printUserInstructionActions(userInstructions, context.dryRun, context.out);
     config.managedPlugins = converged.managedPlugins;
     if (await registerVsCodeMarketplace(context.vscodeSettingsPath, source, context.dryRun)) {
       context.out(`${context.dryRun ? "WOULD" : "DONE"} write: VS Code User Settings chat.plugins.marketplaces`);

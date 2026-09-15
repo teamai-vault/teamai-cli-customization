@@ -27,6 +27,7 @@ describe("Team AI Marketplace catalog", () => {
     const root = await createMarketplace();
     const catalog = await loadMarketplaceCatalog(root, process.cwd());
     expect(catalog.name).toBe("test-marketplace");
+    expect(catalog.root.toLowerCase()).toBe(root.toLowerCase());
     expect(catalog.plugins.map(({ name, kind }) => ({ name, kind }))).toEqual([
       { name: "common", kind: "common" },
       { name: "api", kind: "role" },
