@@ -100,8 +100,16 @@ describe("VS Code-only Copilot fallback", () => {
     expect(switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled).toBe(false);
     expect(switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled).toBe(true);
 
-    switchedConfig.installedPlugins = switchedConfig.installedPlugins.filter((item: { name: string }) => item.name !== "qa");
+    switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled = true;
+    switchedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled = false;
     await writeFile(configPath, JSON.stringify(switchedConfig), "utf8");
+    expect(await runCli(["sync"], base)).toBe(0);
+    const repairedConfig = JSON.parse(await readFile(configPath, "utf8"));
+    expect(repairedConfig.installedPlugins.find((item: { name: string }) => item.name === "api").enabled).toBe(false);
+    expect(repairedConfig.installedPlugins.find((item: { name: string }) => item.name === "qa").enabled).toBe(true);
+
+    repairedConfig.installedPlugins = repairedConfig.installedPlugins.filter((item: { name: string }) => item.name !== "qa");
+    await writeFile(configPath, JSON.stringify(repairedConfig), "utf8");
     expect(await runCli(["sync"], base)).toBe(0);
     expect(JSON.parse(await readFile(configPath, "utf8")).installedPlugins.some((item: { name: string }) => item.name === "qa")).toBe(true);
     expect(await runCli(["doctor"], base)).toBe(0);

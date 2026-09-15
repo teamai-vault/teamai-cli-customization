@@ -78,10 +78,11 @@ export async function convergeUserPlugins(
     }
 
     const shouldEnable = enabledSpecs.has(spec);
-    if (shouldEnable && current?.enabled === false) {
+    const mirrorOutOfSync = typeof current?.mirroredEnabled === "boolean" && current.mirroredEnabled !== shouldEnable;
+    if (shouldEnable && (current?.enabled === false || mirrorOutOfSync)) {
       actions.push({ kind: "plugin-enable", target: spec });
       if (!options.dryRun) await client.enablePlugin(spec, options.cwd);
-    } else if (!shouldEnable && current?.enabled !== false) {
+    } else if (!shouldEnable && (current?.enabled !== false || mirrorOutOfSync)) {
       actions.push({ kind: "plugin-disable", target: spec });
       if (!options.dryRun) await client.disablePlugin(spec, options.cwd);
     }

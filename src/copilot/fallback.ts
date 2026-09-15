@@ -27,6 +27,7 @@ export class FallbackCopilotClient implements CopilotOperations {
     const { config, settings } = await readCopilotState(this.homeDir);
     const configured: InstalledPlugin[] = (config.installedPlugins ?? []).map((plugin) => ({
       ...plugin,
+      mirroredEnabled: plugin.enabled,
       enabled: settings.enabledPlugins?.[`${plugin.name}@${plugin.marketplace}`] ?? plugin.enabled ?? false,
     }));
     for (const materialized of await discoverMaterializedPlugins(installedPluginsRoot(this.homeDir))) {

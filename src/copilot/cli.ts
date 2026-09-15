@@ -5,6 +5,7 @@ export interface InstalledPlugin {
   marketplace?: string;
   version?: string;
   enabled: boolean;
+  mirroredEnabled?: boolean;
   source?: unknown;
   installedFrom?: unknown;
   cache_path?: string;
