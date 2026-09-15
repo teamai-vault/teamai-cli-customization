@@ -2,63 +2,42 @@
 
 中文 | [English](README.md)
 
-`team-ai` 是一个建立在 GitHub Copilot 原生能力之上的轻量 Team Control Layer。它的目标是让团队统一使用共享 AI capabilities，同时避免再造一套 Agent Runtime、Plugin 标准或 IDE 适配层。
+`team-ai` 是建立在 GitHub Copilot 原生能力之上的轻量 Control Layer，用于统一团队共享能力，同时避免再造 Agent Runtime、Plugin 标准或 IDE 适配层。
 
-它只负责：**初始化、Role 选择、Copilot Marketplace / Plugin 收敛、项目接入、状态与诊断、机器本地状态**。共享能力仍然使用标准 Agent Plugins；项目专属能力仍然保存在真实业务 Repo 的 `.github/*` 中。
+CLI 与任何具体部门的 Marketplace **明确解耦**。公司可以统一维护、安装一份 CLI，不同部门各自维护自己的 Copilot Marketplace。
 
 ## 架构
 
 ```text
-teamai-marketplace
-  .github/plugin/marketplace.json
-  plugins/
-    common
-    role-api
-    role-ios
-    role-aos
-    role-qa
-    role-design
-    product-*（出现真实需求后再增加）
-             |
-             | Copilot 原生 marketplace/plugin 命令
-             v
-GitHub Copilot CLI / VS Code / 其他 Copilot Surface
-             ^
-             |
-真实业务 Git Repo
+                    team-ai CLI
+                  公司统一控制面
+                         |
+                         | init --marketplace <source>
+                         v
+                  部门 Marketplace
+              .github/plugin/marketplace.json
+                         |
+                         | manifest.name
+                         v
+              common@<marketplace>
+              role-<role>@<marketplace>
+
+真实业务 Repository
   .github/copilot/settings.json
   .github/copilot-instructions.md
   .github/skills/
   .github/agents/
   .github/instructions/
   .github/hooks/
-
-team-ai CLI
-  bootstrap + role + sync + status + doctor
-  machine state -> ~/.team-ai/
 ```
 
-能力归属保持简单：
-
-| 能力 | 所有者 / 位置 |
-| --- | --- |
-| Common | 用户级 `common@teamai` Plugin |
-| Role | 用户级 `role-<role>@teamai` Plugin |
-| Product | 由业务 Repo settings 声明启用的 `product-*` Plugin |
-| Project | 真实业务 Repo 中的原生 `.github/*` |
-| Machine state | `~/.team-ai/` |
+CLI 不再内置默认部门 Marketplace。`teamai-vault/teamai-marketplace` 只是 Reference / Template Marketplace，不是 CLI 的固有依赖。
 
 ## 环境要求
 
 - Node.js 20+
 - Git
-- GitHub Copilot CLI，可通过 `copilot` 命令调用
-
-先确认：
-
-```text
-copilot --version
-```
+- GitHub Copilot CLI，可通过 `copilot` 调用
 
 ## 本地开发安装
 
@@ -68,56 +47,58 @@ npm run build
 npm link
 ```
 
-完成后应可直接调用 `team-ai`。
+## 第一次初始化
 
-本地开发 Marketplace 时，可在第一次初始化前指定 Marketplace checkout：
+首次初始化必须显式指定 Marketplace source：
 
 ```powershell
-$env:TEAM_AI_MARKETPLACE_SOURCE = "F:\path\to\teamai-marketplace"
-team-ai init --role api
+team-ai init `
+  --marketplace https://github.com/example-org/department-ai-marketplace.git `
+  --role api
 ```
 
-正常团队使用时默认 Marketplace source 为 `teamai-vault/teamai-marketplace`。
-
-## 修改 Marketplace ID
-
-Copilot Marketplace ID 与 GitHub Organization / Repo 名称是相互独立的。如果最终内部名称需要结合部门或团队名称，不要手工逐文件替换，使用内置 rename 工具：
+`--marketplace` 会直接交给 Copilot 原生 Marketplace 注册命令。GitHub Copilot CLI `1.0.83` 原生支持：
 
 ```text
-npm run rename:marketplace -- --from teamai --to payments-platform-ai --dry-run
-npm run rename:marketplace -- --from teamai --to payments-platform-ai --display-name "Payments Platform AI"
+owner/repo
+owner/repo#ref
+https://...
+ssh://...
+git@host:owner/repo.git
+本地路径
 ```
 
-该工具会同步修改两个 sibling Repo 中与 Marketplace 身份相关的内容，包括 Marketplace manifest、CLI 默认 ID、`common@teamai` 这类 Plugin spec、Copilot source marker、测试和文档，并在结束时检查旧 Marketplace ID 是否仍有独立 token 残留。
-
-它会明确保护以下 Repo / package 身份，不会因为 Marketplace 改名而修改：
+公司内部文档可以统一使用完整 Git URL，例如：
 
 ```text
-teamai-vault
-teamai-marketplace
-teamai-cli-customization
+https://github.com/example-org/payments-ai-marketplace.git
 ```
 
-如果两个 Repo 不在 sibling 目录，可显式传路径：
+用户不需要再填写 Marketplace name。CLI 先通过 Copilot 注册 source，再从 Copilot 的注册结果中取得由 `.github/plugin/marketplace.json` 决定的真实 registration key。
 
-```text
-npm run rename:marketplace -- --to payments-platform-ai --cli-repo <path> --marketplace-repo <path>
+最终配置类似：
+
+```yaml
+version: 2
+marketplace:
+  name: payments-ai
+  source: https://github.com/example-org/payments-ai-marketplace.git
+role: api
+managedPlugins:
+  - common@payments-ai
+  - role-api@payments-ai
 ```
 
-建议永远先执行 `--dry-run`，正式改名后再运行 build/typecheck/tests，并执行一次真实 Copilot Marketplace smoke test。
+第一次初始化完成后，`sync / role / status / doctor` 以及后续 `init` 都直接读取已保存 Marketplace，不再要求 `--marketplace`。
 
-这个脚本只修改当前两个源码 Repo。如果旧 Marketplace ID 已经下发给同事使用，还需要额外规划运行时迁移：
+如果已经初始化后又传入另一个不同 source，当前版本会明确拒绝 silent switch。Marketplace migration 不是当前 MVP 范围。
 
-- 每台开发机已经注册的 Copilot Marketplace，以及已安装的 `*@<old-id>` Plugin；
-- `~/.team-ai/config.yaml` 中的 `marketplace.name` 和 `managedPlugins`；
-- 已经在 `.github/copilot/settings.json` 中声明旧 ID 的业务 Repo，包括 `extraKnownMarketplaces` 和 `enabledPlugins`。
-
-因此在正式推广前改名成本很低；推广之后再改名，应当视为一次小型迁移，而不只是源码 rename。
+本地相对路径会在首次初始化时解析成绝对路径再保存，避免之后因为工作目录变化而失效。
 
 ## 命令
 
 ```text
-team-ai init [--role api|ios|aos|qa|design] [--product <name>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--product <name>]
 team-ai sync
 team-ai role list
 team-ai role set <role>
@@ -125,36 +106,32 @@ team-ai status
 team-ai doctor
 ```
 
-所有写操作支持全局 `--dry-run`：
+所有写操作支持全局 `--dry-run`。
 
-```text
-team-ai --dry-run init --role api
-team-ai --dry-run sync
-team-ai --dry-run role set design
-```
+首次 `--dry-run` 时，如果远端 Marketplace 尚未注册，CLI 无法在不产生 Copilot mutation 的前提下知道 manifest-derived name。此时只预览 Marketplace add，并明确跳过 Plugin / config / project preview，不伪造结果。
 
 ### `team-ai init`
 
-机器第一次初始化：
+首次初始化：
 
 ```text
-team-ai init --role api
+team-ai init --marketplace <source> --role <role>
 ```
 
-它会：
+流程：
 
 1. 检查 Copilot CLI；
-2. 通过原生 `copilot plugins` 命令注册公司 Marketplace；
-3. 收敛 `common@teamai` 和当前 `role-*` Plugin；
-4. 将 Role 与 Team AI 自己拥有的 Plugin 记录到 `~/.team-ai/config.yaml`；
-5. 如果当前位于 Git Repo 中，识别 workspace 与 machine partition；
-6. 可选地验证并通过 repository settings 声明 `product-*` Plugin。
+2. 使用 Copilot 原生命令注册指定 source；
+3. 从 Copilot 注册结果发现 Marketplace name；
+4. 收敛 `common@<marketplace>` 与当前 `role-*` Plugin；
+5. 将 Marketplace source/name、Role、Team AI-owned plugins 写入 `~/.team-ai/config.yaml`；
+6. 可选验证并通过 repository settings 声明 `product-*` Plugin。
 
-它**不会**把中央 Skills、Agents、Hooks 或 MCP 复制到业务项目。
+不会把中央 Skills、Agents、Hooks 或 MCP 复制进业务 Repo。
 
 ### `team-ai sync`
 
-这里的 `sync` 表示 **Converge / Repair**，不是 TeamAI 风格的资源复制。它通过 Copilot 原生 Plugin Manager 收敛 Team AI 自己管理的 Common / Role Plugin，并刷新 machine state。
+`sync` 表示 Converge / Repair，而不是复制资源。
 
 ### `team-ai role`
 
@@ -163,61 +140,38 @@ team-ai role list
 team-ai role set design
 ```
 
-切换 Role 时，只会 disable Team AI 自己拥有的旧 Role Plugin。用户原本手工安装的 Plugin 不会被 Team AI 擅自接管。
+切换 Role 只会 disable Team AI 自己拥有的旧 Role Plugin，不会擅自接管用户原本安装的 Plugin。
 
-### `team-ai status`
+### `team-ai status` / `team-ai doctor`
 
-只读展示全局 Role / Plugin 状态、当前 Git Project identity、Product 声明、项目原生 Copilot customization 和 machine partition。
+检查当前已配置 Marketplace、Plugin 状态、Repository settings、Git project identity 与 machine state。当前不会做多个 Marketplace 的选择、merge、overlay 或 precedence。
 
-### `team-ai doctor`
+## 配置兼容
 
-只读检查 Git、Copilot CLI、Marketplace / Plugin、repository settings、Product 声明、machine state 可写性以及 stale/orphan partition。
-
-## 全局配置
-
-机器本地配置位于：
-
-```text
-~/.team-ai/config.yaml
-```
-
-示例：
+当前 config schema 为 `version: 2`，使用：
 
 ```yaml
-version: 1
 marketplace:
-  name: teamai
-  repository: teamai-vault/teamai-marketplace
-role: api
-managedPlugins:
-  - common@teamai
-  - role-api@teamai
+  name: <manifest-derived-name>
+  source: <copilot-marketplace-source>
 ```
 
-`managedPlugins` 是明确的 ownership boundary：只有 Team AI 自己安装/拥有的 Plugin，才允许由 CLI enable、update 或 disable。
+旧 `version: 1` 中的：
+
+```yaml
+marketplace:
+  repository: <source>
+```
+
+仍然可以读取，并在内存中迁移到 v2；下一次正常写 config 时会落盘成新格式。
 
 ## Project 模型
 
-真实业务 Git Repo 本身就是 Project Scope。项目专属 Copilot customization 跟代码一起保存：
+真实业务 Git Repo 就是 Project Scope。项目专属 Copilot customization 继续跟代码保存在 `.github/*`。
 
-```text
-.github/
-  copilot/
-    settings.json
-  copilot-instructions.md
-  skills/
-  agents/
-  instructions/
-  hooks/
-```
-
-执行 `team-ai init --product payments` 时，会先验证 Marketplace 中确实存在 `product-payments`，然后对 `.github/copilot/settings.json` 做 read-modify-write。未知字段、其他 Marketplace 和用户自己的其他 Plugin 都会保留。
-
-不会创建额外的 `*-team-ai` sibling repo。
+`team-ai init --product payments` 会先确认当前 Marketplace 中存在 `product-payments`，再 read-modify-write `.github/copilot/settings.json`，保留未知字段、其他 Marketplace 和其他 Plugin。
 
 ## Machine state 与 Git worktree
-
-机器专属状态完全放在业务 Repo 之外：
 
 ```text
 ~/.team-ai/
@@ -228,9 +182,32 @@ managedPlugins:
       state.json
 ```
 
-`workspaceRoot` 表示当前 checkout/worktree；`projectAnchor` 表示稳定的 main-worktree project identity，用于 partition key。因此多个 Git worktree 可以共享项目身份，同时不会把机器状态写进业务 Repo。
+`workspaceRoot` 是当前 checkout/worktree；`projectAnchor` 是稳定的 main-worktree identity。
 
-写入使用 atomic replace，并为 project partition 使用 lock file。
+## Reference Marketplace 与部门模板
+
+`teamai-vault/teamai-marketplace` 现在定位为 **Reference / Template Marketplace**。
+
+其他部门可以 clone / derive 这份模板，设置自己的 manifest `name`，维护自己的 Common / Role / Product capabilities，然后继续使用完全相同的公司级 CLI：
+
+```powershell
+team-ai init `
+  --marketplace https://github.com/example-org/mobile-ai-marketplace.git `
+  --role ios
+```
+
+不需要 fork CLI。
+
+## Marketplace rename 工具
+
+`scripts/rename-marketplace.mjs` 现在明确是 **Marketplace maintainer utility**：只负责某个 Marketplace Repo 自己的逻辑 ID 改名，不再修改通用 CLI。
+
+```text
+npm run rename:marketplace -- --from teamai --to payments-platform-ai --dry-run
+npm run rename:marketplace -- --from teamai --to payments-platform-ai --display-name "Payments Platform AI"
+```
+
+详见 [`scripts/README.md`](scripts/README.md)。
 
 ## 验证与测试
 
@@ -242,22 +219,19 @@ npm run test:integration
 npm test
 ```
 
-Integration tests 使用 fake Copilot executable，但会实际创建临时 Git Repo / worktree。因此它们明确属于 integration，不会被描述成真实 Copilot E2E。
-
-Release 前还应使用真实 Copilot CLI 验证。最新验证情况见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
+Fake Copilot integration 不会被描述成真实 E2E。真实 Copilot 验证记录见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
 
 ## 当前明确不做
 
+- 默认部门 Marketplace；
+- multi-Marketplace selection / merge / overlay / precedence；
+- Marketplace package manager；
 - 非 Copilot Agent Runtime 或 IDE adapter；
-- 替代 Copilot Plugin Manager 或 Copilot `/init`；
 - 自定义 Plugin / Skill / Hook / MCP 格式；
-- 自己复制或转换中央 Skills / Agents / Hooks / MCP；
-- 通用 overlay / patch / merge engine；
+- 通用 overlay engine；
 - TeamWiki、Recall、Learning、telemetry、dashboard。
-
-后续优先级见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
 
 ## 项目文档
 
-- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)：根据冻结架构整理的正式 Implementation Plan。
-- [`docs/HANDOFF.md`](docs/HANDOFF.md)：当前实现状态、验证证据、遗留问题与后续优先级。
+- [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)
+- [`docs/HANDOFF.md`](docs/HANDOFF.md)

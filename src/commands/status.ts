@@ -15,7 +15,7 @@ export async function statusCommand(context: CommandContext): Promise<void> {
   if (!config) {
     context.out("  Config: not initialized");
   } else {
-    context.out(`  Marketplace: ${config.marketplace.name} (${config.marketplace.repository})`);
+    context.out(`  Marketplace: ${config.marketplace.name} (${config.marketplace.source})`);
     context.out(`  Role: ${config.role ?? "not set"}`);
     try {
       const marketplaces = await context.copilot.listMarketplaces(context.cwd);

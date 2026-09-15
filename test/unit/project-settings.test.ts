@@ -1,9 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { MARKETPLACE_NAME } from "../../src/config/schema.js";
 import { mergeProductPlugin, readProjectSettings, writeProjectSettings } from "../../src/copilot/project-settings.js";
-import { tempDir } from "../helpers/test-utils.js";
+import { tempDir, TEST_MARKETPLACE_NAME, TEST_MARKETPLACE_SOURCE } from "../helpers/test-utils.js";
 
 describe("repository Copilot settings", () => {
   test("preserves unknown fields and unrelated plugins", async () => {
@@ -17,16 +16,16 @@ describe("repository Copilot settings", () => {
     }), "utf8");
 
     const current = await readProjectSettings(root);
-    const merged = mergeProductPlugin(current, { name: MARKETPLACE_NAME, repository: "test-org/teamai-marketplace" }, "payments");
+    const merged = mergeProductPlugin(current, { name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }, "payments");
     await writeProjectSettings(root, merged);
     const persisted = JSON.parse(await readFile(settingsPath, "utf8"));
 
     expect(persisted.customFutureField).toEqual({ keep: true });
     expect(persisted.enabledPlugins["user-plugin@other"]).toBe(true);
-    expect(persisted.enabledPlugins[`product-payments@${MARKETPLACE_NAME}`]).toBe(true);
+    expect(persisted.enabledPlugins[`product-payments@${TEST_MARKETPLACE_NAME}`]).toBe(true);
     expect(persisted.extraKnownMarketplaces.other).toBeDefined();
-    expect(persisted.extraKnownMarketplaces[MARKETPLACE_NAME]).toEqual({
-      source: { source: "github", repo: "test-org/teamai-marketplace" },
+    expect(persisted.extraKnownMarketplaces[TEST_MARKETPLACE_NAME]).toEqual({
+      source: { source: "git", url: TEST_MARKETPLACE_SOURCE },
     });
   });
 

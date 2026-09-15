@@ -11,14 +11,15 @@ The project remains aligned with the frozen design:
 ```text
 Shared capabilities
   -> Agent Plugins 1.0
-  -> teamai-marketplace
+  -> department-owned Marketplace
   -> native GitHub Copilot Marketplace
 
 Common
-  -> common@teamai
+  -> common@<configured-marketplace>
 
 Role
   -> role-api / role-ios / role-aos / role-qa / role-design
+  -> installed from the configured Marketplace
 
 Product
   -> future product-* plugin
@@ -31,14 +32,16 @@ Machine state
   -> ~/.team-ai/
 
 team-ai CLI
-  -> bootstrap + role + convergence + status + doctor
+  -> company-wide bootstrap + role + convergence + status + doctor
 ```
 
-No custom runtime, IDE adapter, overlay engine, or knowledge runtime has been introduced.
+The CLI is intentionally independent from any one department Marketplace. `teamai-marketplace` is now the reference/template Marketplace used by this project, not a built-in CLI dependency. No custom runtime, IDE adapter, overlay engine, Marketplace merge layer, or knowledge runtime has been introduced.
 
 ## 2. Implemented repositories
 
 ### `teamai-marketplace`
+
+This repository is the current **reference/template Marketplace**. Departments may clone/derive it, choose their own manifest `name`, and maintain their own shared capabilities while continuing to use the same CLI binary.
 
 Current canonical manifest:
 
@@ -66,7 +69,7 @@ There is intentionally no fake Product Plugin yet. Add `product-*` only when at 
 Implemented commands:
 
 ```text
-team-ai init
+team-ai init [--marketplace <source>] [--role <role>] [--product <name>]
 team-ai sync
 team-ai role list
 team-ai role set <role>
@@ -90,32 +93,39 @@ All write commands support `--dry-run`.
 
 These findings came from GitHub Copilot CLI `1.0.83` on Windows and should be preserved because they affect future maintenance.
 
-### 3.0 Marketplace identity was normalized to `teamai`
+### 3.0 CLI / Marketplace identity is now decoupled
 
-The early architecture draft used `company-ai` as a generic placeholder marketplace name. Before team rollout, the real Marketplace identity was intentionally normalized to:
-
-```text
-teamai
-```
-
-The canonical GitHub repository remains:
+The CLI no longer contains a default Marketplace ID or default Marketplace repository. First-time initialization requires:
 
 ```text
-teamai-vault/teamai-marketplace
+team-ai init --marketplace <source> --role <role>
 ```
 
-Do not reintroduce `company-ai`, `Company AI`, or example organization identifiers such as `acme/*` into production defaults or documentation. Test-only repository identities should be explicitly named `test-org/*`.
+The `--marketplace` value is a native Copilot Marketplace source and is passed to `copilot plugins marketplace add`. Copilot CLI `1.0.83` accepts GitHub `owner/repo`, `owner/repo#ref`, full HTTP/HTTPS/SSH/git URLs, SCP-style git URLs, and local paths.
 
-The Marketplace ID may still be renamed later after the owning department/team agrees on a final internal name. Do not do a raw global replacement because `teamai` is also part of repository identities such as `teamai-vault`, `teamai-marketplace`, and `teamai-cli-customization`.
+After registration, Team AI discovers the actual Marketplace registration key from Copilot rather than asking the user to duplicate manifest `name`. It persists:
 
-Use the checked-in rename tool instead:
+```yaml
+version: 2
+marketplace:
+  name: <manifest-derived-name>
+  source: <copilot-marketplace-source>
+```
+
+There is intentionally still only **one configured Marketplace per user** in the MVP. No Marketplace list/add/use command family, merge, overlay, or precedence model was introduced.
+
+Legacy v1 config using `marketplace.repository` is accepted and migrated in memory to v2 `marketplace.source`.
+
+`teamai-vault/teamai-marketplace` remains the reference/template Marketplace used for development and examples. Its current manifest ID is `teamai`, but that identity is no longer compiled into the CLI.
+
+If a department wants to rename its Marketplace, use the checked-in maintainer utility:
 
 ```text
 npm run rename:marketplace -- --from teamai --to <new-marketplace-id> --dry-run
 npm run rename:marketplace -- --from teamai --to <new-marketplace-id> [--display-name "<display name>"]
 ```
 
-The tool lives at `scripts/rename-marketplace.mjs`, updates both sibling repositories, performs boundary-aware replacement of Marketplace identity tokens, and fails if the old standalone ID would remain. Repository/package identifiers containing the same text as part of a larger hyphenated name are intentionally preserved.
+The tool lives at `scripts/rename-marketplace.mjs`, updates only the target Marketplace repository, performs boundary-aware replacement of Marketplace identity tokens, and fails if the old standalone ID would remain. It deliberately does not modify the generic CLI repository.
 
 The rename tool is intentionally source-repository scoped. Once an ID has been rolled out, a rename also requires migration of developer Copilot registrations/plugins, `~/.team-ai/config.yaml`, and any business repository `.github/copilot/settings.json` that declares the old Marketplace ID. Do not silently mutate those external/user-owned locations from the development rename script.
 
@@ -192,6 +202,9 @@ Only plugins that Team AI installed/claimed are later eligible for Team AI enabl
 Example:
 
 ```yaml
+marketplace:
+  name: teamai
+  source: https://github.com/teamai-vault/teamai-marketplace.git
 managedPlugins:
   - common@teamai
   - role-api@teamai
@@ -251,16 +264,22 @@ npm run typecheck PASS
 npm test          PASS
 ```
 
-Test result:
+Current test result for the Marketplace-decoupling implementation:
 
 ```text
-7 test files passed
-17 tests passed
+9 test files passed
+23 tests passed
 ```
 
 Coverage includes:
 
 - config read/write;
+- v1 `marketplace.repository` -> v2 `marketplace.source` migration;
+- first init requires explicit `--marketplace`;
+- full Git URL source persistence;
+- Marketplace name discovery from Copilot registration state;
+- local relative path normalization;
+- refusal of silent Marketplace switching;
 - role validation including `design`;
 - settings merge and unknown-field preservation;
 - Windows and POSIX path partitioning;
@@ -295,7 +314,7 @@ isolated temporary Git repository
 local Marketplace checkout
 ```
 
-Sequence:
+Historical sequence before Marketplace/CLI decoupling:
 
 ```text
 team-ai init --role design  PASS
@@ -317,7 +336,7 @@ other role plugins disabled live Marketplace projections
 
 The temporary profile/repository was removed after the test.
 
-After the Marketplace identity was renamed from the early placeholder `company-ai` to `teamai`, the same CLI flow was re-run against the **pushed GitHub Marketplace source** with no `TEAM_AI_MARKETPLACE_SOURCE` override. This exercised the default `teamai-vault/teamai-marketplace` path and the final `teamai` identity end-to-end:
+After the Marketplace identity was renamed from the early placeholder `company-ai` to `teamai`, the same CLI flow was re-run against the pushed GitHub Marketplace source. That was valid evidence for the old single-default implementation, but the CLI no longer has a built-in default Marketplace.
 
 ```text
 team-ai init --role design  PASS
@@ -335,6 +354,52 @@ role-design@teamai disabled after role switch
 ```
 
 The remote E2E also used an isolated temporary profile/repository and cleaned the temporary directory afterward.
+
+Current explicit-source E2E after CLI/Marketplace decoupling:
+
+```text
+Remote full Git URL source
+
+team-ai init \
+  --marketplace https://github.com/teamai-vault/teamai-marketplace.git \
+  --role design                         PASS
+team-ai role set api                   PASS
+team-ai sync                           PASS (no-op after convergence)
+team-ai doctor                         PASS, exit 0
+```
+
+Persisted config:
+
+```yaml
+version: 2
+marketplace:
+  name: teamai
+  source: https://github.com/teamai-vault/teamai-marketplace.git
+role: api
+managedPlugins:
+  - common@teamai
+  - role-api@teamai
+```
+
+Native installed rows remained `source=marketplace:teamai`, confirming that Team AI correctly separates the configured source from the manifest-derived registration key.
+
+A second real E2E used a **relative local Marketplace path**. Initialization and `doctor` both passed, and Team AI persisted the source as the absolute path:
+
+```yaml
+version: 2
+marketplace:
+  name: teamai
+  source: F:\agent-workspace\multiAgent\teamai-cli-customization\wt-teamai-marketplace-decouple
+role: design
+```
+
+Copilot reported that Marketplace as:
+
+```text
+Local: F:\agent-workspace\multiAgent\teamai-cli-customization\wt-teamai-marketplace-decouple
+```
+
+Both current E2E runs used isolated temporary `USERPROFILE`/`HOME` and temporary Git repositories.
 
 ## 8. Known limitations / remaining issues
 

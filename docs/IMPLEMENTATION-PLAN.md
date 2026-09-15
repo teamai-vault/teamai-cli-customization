@@ -18,11 +18,15 @@ Build a minimal Team AI Execution layer that is:
 - first-class on Windows and compatible with macOS/POSIX paths;
 - deliberately constrained by YAGNI.
 
+The CLI is company-wide and department-neutral. It must not be intrinsically bound to one Marketplace repository or Marketplace ID. Each user configures exactly one department-owned Marketplace for the current MVP.
+
 The CLI must orchestrate native Copilot capabilities. It must not become a Plugin Manager, Skill copier, IDE adapter, generic overlay engine, or knowledge runtime.
 
 ## 2. Repository architecture
 
 ### `teamai-marketplace`
+
+This repository is the reference/template Marketplace used to exercise and demonstrate the CLI. Departments may clone/derive it and maintain their own Marketplace without forking the CLI.
 
 ```text
 teamai-marketplace/
@@ -95,7 +99,7 @@ teamai-cli-customization/
 ## 4. MVP command surface
 
 ```text
-team-ai init [--role api|ios|aos|qa|design] [--product <name>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--product <name>]
 team-ai sync
 team-ai role list
 team-ai role set <role>
@@ -112,8 +116,8 @@ Global write preview:
 ## 5. Capability ownership model
 
 ```text
-Common  -> common@teamai user plugin
-Role    -> role-<role>@teamai user plugin
+Common  -> common@<configured-marketplace> user plugin
+Role    -> role-<role>@<configured-marketplace> user plugin
 Product -> repo-enabled product-* plugin
 Project -> native .github/* in the real business repository
 ```
@@ -127,9 +131,16 @@ Central capabilities should use unique names. A central name collision is a pack
 ### Bootstrap
 
 - verify GitHub Copilot CLI;
-- register the team marketplace with native Copilot commands;
+- on first init, require an explicit `--marketplace <source>`;
+- register that source with native Copilot commands;
+- discover the Marketplace registration key from Copilot after registration instead of asking the user to duplicate manifest `name`;
+- persist Marketplace `name` + `source` in machine config;
 - install/enable Common + Role capabilities;
 - store only Team AI-owned local state.
+
+There is no built-in default Marketplace. Full Git URLs, GitHub `owner/repo`, SSH/git URLs, and local paths are delegated to the native Copilot source contract. Local relative paths are normalized to absolute paths before persistence.
+
+The MVP intentionally supports one configured Marketplace per user. It does not implement Marketplace list/add/use, multi-Marketplace merge, overlay, or precedence.
 
 ### Role selection
 
@@ -171,6 +182,19 @@ Central capabilities should use unique names. A central name collision is a pack
         ├── anchor
         └── state.json
 ```
+
+Current global config schema:
+
+```yaml
+version: 2
+marketplace:
+  name: <manifest-derived-name>
+  source: <copilot-marketplace-source>
+role: <role>
+managedPlugins: []
+```
+
+Legacy v1 `marketplace.repository` is accepted and migrated in memory to v2 `marketplace.source`.
 
 ### Identity
 
@@ -247,6 +271,12 @@ Rules:
 - nested cwd;
 - real Git worktree;
 - repeated `init`;
+- first init requires explicit Marketplace source;
+- Marketplace name discovery after native registration;
+- full Git URL source persistence;
+- local relative Marketplace path normalization;
+- refuse silent Marketplace switching after initialization;
+- v1 -> v2 config migration;
 - repeated `sync`;
 - role switch;
 - `--dry-run` side-effect isolation;
@@ -259,7 +289,7 @@ Rules:
 Use an isolated temporary user profile and a real installed Copilot CLI to run:
 
 ```text
-init --role design
+init --marketplace <source> --role design
 role set api
 sync
 sync
@@ -281,6 +311,8 @@ Not in the MVP:
 - tags;
 - sources;
 - package manager;
+- default department Marketplace;
+- multi-Marketplace selection/merge/overlay/precedence;
 - contribution/publish automation;
 - TeamWiki;
 - Recall;

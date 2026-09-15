@@ -9,7 +9,6 @@ export interface CommandContext {
   now: () => Date;
   out: (message: string) => void;
   err: (message: string) => void;
-  env: NodeJS.ProcessEnv;
 }
 
 export function createCommandContext(overrides: Partial<CommandContext> = {}): CommandContext {
@@ -21,6 +20,5 @@ export function createCommandContext(overrides: Partial<CommandContext> = {}): C
     now: overrides.now ?? (() => new Date()),
     out: overrides.out ?? ((message) => console.log(message)),
     err: overrides.err ?? ((message) => console.error(message)),
-    env: overrides.env ?? process.env,
   };
 }

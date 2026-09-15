@@ -17,7 +17,7 @@ function parseArgs(argv) {
       options.dryRun = true;
       continue;
     }
-    if (["--to", "--from", "--display-name", "--cli-repo", "--marketplace-repo"].includes(arg)) {
+    if (["--to", "--from", "--display-name", "--marketplace-repo"].includes(arg)) {
       const value = argv[index + 1];
       if (!value || value.startsWith("--")) throw new Error(`${arg} requires a value.`);
       options[arg.slice(2).replaceAll("-", "_")] = value;
@@ -34,7 +34,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  return `Rename the logical Copilot Marketplace ID across both Team AI repositories.
+  return `Rename the logical Copilot Marketplace ID inside one Marketplace repository.
 
 Usage:
   npm run rename:marketplace -- --to <new-id> [options]
@@ -44,13 +44,13 @@ Options:
   --from <id>               Optional safety guard; must match the manifest's current ID.
   --display-name <name>     Optional marketplace owner display name.
   --marketplace-repo <path> Marketplace repository path. Default: sibling ../teamai-marketplace.
-  --cli-repo <path>         CLI repository path. Default: repository containing this script.
   --dry-run                 Preview changes without writing.
   --help                    Show this help.
 
 Safety:
   The tool renames only standalone Marketplace identity tokens. It deliberately does NOT rename
-  repository/package identities such as teamai-vault, teamai-marketplace, or teamai-cli-customization.`;
+  repository/package identities such as teamai-vault or teamai-marketplace. The Team AI CLI is
+  intentionally independent from any department Marketplace and is not modified by this tool.`;
 }
 
 function escapeRegExp(value) {
@@ -94,8 +94,7 @@ async function main() {
   }
 
   const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-  const cliRoot = path.resolve(options.cli_repo ?? scriptRoot);
-  const marketplaceRoot = path.resolve(options.marketplace_repo ?? path.join(cliRoot, "..", "teamai-marketplace"));
+  const marketplaceRoot = path.resolve(options.marketplace_repo ?? path.join(scriptRoot, "..", "teamai-marketplace"));
   const manifestPath = path.join(marketplaceRoot, ".github", "plugin", "marketplace.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   const currentName = manifest.name;
@@ -118,7 +117,7 @@ async function main() {
   }
 
   const manifestReplacement = `${JSON.stringify(manifest, null, 2)}\n`;
-  const files = [...new Set([...(await collectTextFiles(cliRoot)), ...(await collectTextFiles(marketplaceRoot))])];
+  const files = await collectTextFiles(marketplaceRoot);
   const oldPattern = marketplaceTokenPattern(currentName);
   const planned = [];
 
@@ -132,11 +131,10 @@ async function main() {
 
   console.log(`Marketplace ID: ${currentName} -> ${options.to}`);
   if (options.display_name) console.log(`Owner display name -> ${options.display_name}`);
-  console.log(`CLI repo: ${cliRoot}`);
   console.log(`Marketplace repo: ${marketplaceRoot}`);
   console.log(`${options.dryRun ? "Would update" : "Updating"} ${planned.length} file(s):`);
   for (const item of planned) {
-    console.log(`  ${path.relative(path.dirname(cliRoot), item.file)} (${item.replacements} token replacement${item.replacements === 1 ? "" : "s"})`);
+    console.log(`  ${path.relative(marketplaceRoot, item.file)} (${item.replacements} token replacement${item.replacements === 1 ? "" : "s"})`);
   }
 
   if (!options.dryRun) {
@@ -162,6 +160,7 @@ async function main() {
     ? "Dry-run verification passed: no standalone old-ID tokens would remain."
     : "Rename complete: no standalone old-ID tokens remain.");
   console.log("Repository/package names containing the old text as part of a larger hyphenated identifier were intentionally preserved.");
+  console.log("The Team AI CLI repository is not modified because CLI identity is independent from Marketplace identity.");
   console.log("This tool updates source repositories only. If the old Marketplace ID has already been used by developers or business repositories, migrate local Copilot registrations, ~/.team-ai/config.yaml, and repository .github/copilot/settings.json separately.");
 }
 
