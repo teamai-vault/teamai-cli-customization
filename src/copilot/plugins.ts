@@ -61,7 +61,7 @@ export async function convergeUserPlugins(
   for (const spec of installSpecs) {
     const [name, marketplace] = spec.split("@");
     let current = installed.find((item) => item.name === name && item.marketplace === marketplace);
-    if (!current || (!owned.has(spec) && current.enabled === false && current.source === `live-marketplace:${marketplace}`)) {
+    if (!current || (owned.has(spec) && current.source === "filesystem") || (!owned.has(spec) && current.enabled === false && current.source === `live-marketplace:${marketplace}`)) {
       actions.push({ kind: "plugin-install", target: spec });
       owned.add(spec);
       if (!options.dryRun) {

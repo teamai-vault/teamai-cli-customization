@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rename, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { loadMarketplaceCatalog, type MarketplaceCatalog } from "./catalog.js";
 import type { CopilotOperations, InstalledPlugin, MarketplacePluginRow, MarketplaceRow, NativeMcpServer } from "./cli.js";
@@ -25,10 +25,20 @@ export class FallbackCopilotClient implements CopilotOperations {
 
   async listPlugins(): Promise<InstalledPlugin[]> {
     const { config, settings } = await readCopilotState(this.homeDir);
-    return (config.installedPlugins ?? []).map((plugin) => ({
+    const configured: InstalledPlugin[] = (config.installedPlugins ?? []).map((plugin) => ({
       ...plugin,
       enabled: settings.enabledPlugins?.[`${plugin.name}@${plugin.marketplace}`] ?? plugin.enabled ?? false,
     }));
+    for (const materialized of await discoverMaterializedPlugins(installedPluginsRoot(this.homeDir))) {
+      if (!configured.some((plugin) => plugin.name === materialized.name && plugin.marketplace === materialized.marketplace)) {
+        configured.push({
+          ...materialized,
+          enabled: settings.enabledPlugins?.[`${materialized.name}@${materialized.marketplace}`] ?? false,
+          source: "filesystem",
+        });
+      }
+    }
+    return configured;
   }
 
   async listMcpServers(): Promise<{ servers: NativeMcpServer[]; errors: string[] }> {
@@ -158,4 +168,30 @@ async function replaceDirectory(source: string, target: string): Promise<void> {
     await rm(temporary, { recursive: true, force: true });
     throw error;
   }
+}
+
+async function discoverMaterializedPlugins(root: string): Promise<InstalledPlugin[]> {
+  const plugins: InstalledPlugin[] = [];
+  let marketplaces;
+  try {
+    marketplaces = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return plugins;
+    throw error;
+  }
+  for (const marketplace of marketplaces.filter((entry) => entry.isDirectory())) {
+    const marketplaceRoot = path.join(root, marketplace.name);
+    for (const plugin of (await readdir(marketplaceRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory())) {
+      const pluginRoot = path.join(marketplaceRoot, plugin.name);
+      try {
+        const manifest = JSON.parse(await readFile(path.join(pluginRoot, "plugin.json"), "utf8")) as { name?: unknown; version?: unknown };
+        if (manifest.name === plugin.name && typeof manifest.version === "string") {
+          plugins.push({ name: plugin.name, marketplace: marketplace.name, version: manifest.version, enabled: false, cache_path: pluginRoot });
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+      }
+    }
+  }
+  return plugins;
 }
