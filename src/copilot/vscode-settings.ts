@@ -29,7 +29,10 @@ export function mergeVsCodeMarketplace(contents: string | undefined, source: str
   if (index === 0) return original;
   const options = { formattingOptions: formatting(original) };
   if (index > 0) {
-    const moved = applyEdits(original, modify(original, [MARKETPLACES_KEY, index], marketplaces[0], options));
+    let moved = original;
+    for (let currentIndex = index; currentIndex > 0; currentIndex -= 1) {
+      moved = applyEdits(moved, modify(moved, [MARKETPLACES_KEY, currentIndex], marketplaces[currentIndex - 1], options));
+    }
     return applyEdits(moved, modify(moved, [MARKETPLACES_KEY, 0], source, options));
   }
   return applyEdits(original, modify(original, [MARKETPLACES_KEY, 0], source, { ...options, isArrayInsertion: true }));

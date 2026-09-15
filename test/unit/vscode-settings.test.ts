@@ -28,13 +28,13 @@ describe("VS Code User Settings merge", () => {
   "chat.plugins.marketplaces": [
     "first",
     // keep second
+    "second",
     "team-ai",
-    "third",
   ],
 }
 `;
     const merged = mergeVsCodeMarketplace(current, "team-ai");
     expect(merged).toContain("// keep second");
-    expect((parse(merged) as Record<string, string[]>)["chat.plugins.marketplaces"]).toEqual(["team-ai", "first", "third"]);
+    expect((parse(merged) as Record<string, string[]>)["chat.plugins.marketplaces"]).toEqual(["team-ai", "first", "second"]);
   });
 });
