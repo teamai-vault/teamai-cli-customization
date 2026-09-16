@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { runCli } from "../../src/cli.js";
 import { readGlobalConfig, writeGlobalConfig } from "../../src/config/global.js";
 import { createConfig } from "../../src/config/schema.js";
+import { CopilotClient } from "../../src/copilot/cli.js";
 import { partitionPath } from "../../src/project/partition.js";
 import { detectProjectIdentity } from "../../src/project/anchors.js";
 import {
@@ -42,6 +43,30 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await readGlobalConfig(home)).toBeUndefined();
     expect(output.stderr.some((line) => line.includes("--marketplace <source>"))).toBe(true);
   }, 10_000);
+
+  test("init converges instructions when Copilot and VS Code backends are unavailable", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-no-backend-home-");
+    const marketplace = await tempDir("team-ai-instructions-no-backend-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "managed without backend\n", "utf8");
+    const output = capture();
+
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: new CopilotClient("team-ai-command-not-installed"),
+      vscodeAvailable: async () => false,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+      out: output.out,
+      err: output.err,
+    })).toBe(1);
+
+    expect(await readFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "utf8"))
+      .toBe("managed without backend\n");
+    expect(output.stderr.some((line) => line.includes("plugin convergence could not run"))).toBe(true);
+  }, 15_000);
 
   test("non-interactive init reports each missing required value", async () => {
     const repo = await createGitRepo();
@@ -566,6 +591,68 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(1);
     expect(output.stdout.some((line) => line.includes("Managed user instruction target is not writable"))).toBe(true);
     expect(await readFile(blockedParent, "utf8")).toBe("not a directory\n");
+  }, 15_000);
+
+  test("doctor and sync reject a non-file managed instruction path before writing", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-occupied-path-home-");
+    const marketplace = await tempDir("team-ai-instructions-occupied-path-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    const targetRoot = path.join(home, ".copilot", "instructions", "team-ai");
+    const occupiedPath = path.join(targetRoot, "global.instructions.md");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "managed\n", "utf8");
+    await mkdir(occupiedPath, { recursive: true });
+    await writeFile(path.join(occupiedPath, "keep.txt"), "keep\n", "utf8");
+    const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
+    config.role = "api";
+    await writeGlobalConfig(config, home);
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+    });
+    const base = {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+    };
+
+    const doctor = capture();
+    expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(1);
+    expect(doctor.stdout.some((line) => line.includes("Unsafe managed user instruction target") && line.includes("global.instructions.md"))).toBe(true);
+    expect(await readFile(path.join(occupiedPath, "keep.txt"), "utf8")).toBe("keep\n");
+
+    const sync = capture();
+    expect(await runCli(["sync"], { ...base, out: sync.out, err: sync.err })).toBe(1);
+    expect(sync.stderr.some((line) => line.includes("Unsafe managed user instruction target") && line.includes("global.instructions.md"))).toBe(true);
+    expect(await readFile(path.join(occupiedPath, "keep.txt"), "utf8")).toBe("keep\n");
+  }, 15_000);
+
+  test("sync converges instructions when Copilot and VS Code backends are unavailable", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-sync-no-backend-home-");
+    const marketplace = await tempDir("team-ai-sync-no-backend-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "sync without backend\n", "utf8");
+    const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
+    config.role = "api";
+    await writeGlobalConfig(config, home);
+    const output = capture();
+
+    expect(await runCli(["sync"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: new CopilotClient("team-ai-command-not-installed"),
+      vscodeAvailable: async () => false,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+      out: output.out,
+      err: output.err,
+    })).toBe(1);
+
+    expect(await readFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "utf8"))
+      .toBe("sync without backend\n");
+    expect(output.stderr.some((line) => line.includes("plugin convergence could not run"))).toBe(true);
   }, 15_000);
 
   test("status and doctor report an unsafe managed target boundary", async ({ skip }) => {

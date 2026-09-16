@@ -20,8 +20,12 @@ export async function syncCommand(context: CommandContext): Promise<void> {
   let converged;
   let userInstructions;
   try {
-    converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, { dryRun: context.dryRun, cwd: context.cwd });
     userInstructions = await convergeMarketplaceUserInstructions(catalog.root, context.homeDir, { dryRun: context.dryRun });
+    if (context.copilotMode === "unavailable") {
+      printUserInstructionActions(userInstructions, context.dryRun, context.out);
+      throw new Error("Copilot CLI and VS Code backends are unavailable; Marketplace user instructions were synchronized, but plugin convergence could not run.");
+    }
+    converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, { dryRun: context.dryRun, cwd: context.cwd });
   } finally {
     await catalog.dispose();
   }

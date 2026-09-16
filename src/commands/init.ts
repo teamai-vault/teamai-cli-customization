@@ -45,6 +45,12 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     }
     enabledUserPlugins(role, catalog.plugins, catalog.name);
 
+    const userInstructions = await convergeMarketplaceUserInstructions(catalog.root, context.homeDir, { dryRun: context.dryRun });
+    if (context.copilotMode === "unavailable") {
+      printUserInstructionActions(userInstructions, context.dryRun, context.out);
+      throw new Error("Copilot CLI and VS Code backends are unavailable; Marketplace user instructions were synchronized, but plugin convergence could not run.");
+    }
+
     const version = await context.copilot.version();
     context.out(`Copilot CLI: ${version}`);
     let marketplaceAdded = false;
@@ -65,14 +71,12 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     const productName = options.product ? productPluginName(options.product) : undefined;
 
     let converged;
-    let userInstructions;
     try {
       converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, {
         dryRun: context.dryRun,
         cwd: context.cwd,
         requiredCatalogPlugin: productName,
       });
-      userInstructions = await convergeMarketplaceUserInstructions(catalog.root, context.homeDir, { dryRun: context.dryRun });
     } catch (error) {
       if (marketplaceAdded && !context.dryRun) {
         try {

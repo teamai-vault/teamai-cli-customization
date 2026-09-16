@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import { readGlobalConfig } from "../config/global.js";
 import { enabledUserPlugins, pluginSpec, userPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import type { MarketplaceCatalog } from "../copilot/catalog.js";
 import { checkUserInstructionState, discoverMarketplaceUserInstructions, userInstructionTargetRoot } from "../copilot/user-instructions.js";
 import { fallbackStateProblems, marketplaceRegistrationMatches, readCopilotState } from "../copilot/user-state.js";
 import { vscodeMarketplaceIsFirst } from "../copilot/vscode-settings.js";
@@ -114,20 +115,24 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
   }
 
   let marketplaceCatalog: { name: string }[] | undefined;
-  if (copilotAvailable && config) {
+  if (config) {
+    let catalog: MarketplaceCatalog | undefined;
     try {
-      const marketplaces = await context.copilot.listMarketplaces(context.cwd);
-      if (!marketplaces.some((item) => item.name === config.marketplace.name)) {
-        fail(`Marketplace ${config.marketplace.name} is not registered. Run team-ai sync.`);
-      } else {
-        ok(`Marketplace ${config.marketplace.name} is registered.`);
-        marketplaceCatalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
+      catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+      if (catalog.name !== config.marketplace.name) {
+        throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
       }
-      if (config.role) {
-        const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
-        try {
-          if (catalog.name !== config.marketplace.name) throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
-          await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
+      await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
+
+      if (copilotAvailable) {
+        const marketplaces = await context.copilot.listMarketplaces(context.cwd);
+        if (!marketplaces.some((item) => item.name === config.marketplace.name)) {
+          fail(`Marketplace ${config.marketplace.name} is not registered. Run team-ai sync.`);
+        } else {
+          ok(`Marketplace ${config.marketplace.name} is registered.`);
+          marketplaceCatalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
+        }
+        if (config.role) {
           const plugins = await context.copilot.listPlugins(context.cwd);
           const expectedEnabled = new Set(enabledUserPlugins(config.role, catalog.plugins, config.marketplace.name));
           for (const desired of userPlugins(catalog.plugins, config.marketplace.name)) {
@@ -136,36 +141,12 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
             else if (row.enabled !== expectedEnabled.has(desired)) fail(`${desired} has incorrect enablement. Run team-ai sync.`);
             else ok(`${desired} is ${row.enabled ? "enabled" : "installed and disabled"}.`);
           }
-        } finally {
-          await catalog.dispose();
-        }
-      } else {
-        const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
-        try {
-          if (catalog.name !== config.marketplace.name) throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
-          await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
-        } finally {
-          await catalog.dispose();
         }
       }
     } catch (error) {
-      fail(`Copilot plugin diagnostics failed: ${(error as Error).message}`);
-    }
-  }
-
-  if (!copilotAvailable && config) {
-    try {
-      const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
-      try {
-        if (catalog.name !== config.marketplace.name) {
-          throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
-        }
-        await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
-      } finally {
-        await catalog.dispose();
-      }
-    } catch (error) {
-      fail(`Marketplace user instructions could not be read: ${(error as Error).message}`);
+      fail(`${copilotAvailable ? "Copilot plugin diagnostics failed" : "Marketplace user instructions could not be read"}: ${(error as Error).message}`);
+    } finally {
+      await catalog?.dispose();
     }
   }
 

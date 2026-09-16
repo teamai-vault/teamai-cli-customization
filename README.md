@@ -41,7 +41,7 @@ The CLI has no built-in department Marketplace. `teamai-vault/teamai-marketplace
 
 - Node.js 20+
 - Git
-- GitHub Copilot CLI available as `copilot` (native backend), or VS Code available as `code` (fallback backend)
+- Optional backend: GitHub Copilot CLI available as `copilot` (native backend), or VS Code available as `code` (fallback backend). Marketplace-managed user instructions are file-based and can converge without either backend; plugin convergence still requires one.
 
 ## Development installation
 
@@ -92,6 +92,8 @@ user-instructions/**/*.instructions.md
 `team-ai init` and `team-ai sync` mirror those files byte-for-byte into the managed user-level directory `~/.copilot/instructions/team-ai/`, preserving relative paths. The directory is Team AI-owned; keep personal instructions elsewhere under `~/.copilot/instructions/`. File and folder names only organize content—Team AI does not assign company, department, role, or action semantics, and native Copilot frontmatter remains unchanged.
 
 This is the only narrow exception to the prohibition on arbitrary or generic resource copying/injection: the concrete use case is deploying department-approved Copilot user instructions. Marketplace maintainers own and review the content; Team AI owns only `~/.copilot/instructions/team-ai/` and mirrors the frozen `user-instructions/**/*.instructions.md` contract there. The CLI accepts regular single-link-count files, rejects link-like source/target paths and unsafe boundaries, writes atomically, and leaves all other user instructions untouched. This ownership and security boundary was reviewed with the frozen spec and implementation plan; no generic copier architecture is introduced.
+
+If both Copilot CLI and VS Code are unavailable, `init`/`sync` still converge this file tree but return an error explaining that plugin convergence could not run; the command must not report full initialization or synchronization success.
 
 ## First-time initialization
 

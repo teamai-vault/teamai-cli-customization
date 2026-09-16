@@ -200,7 +200,7 @@ npm run test:integration PASS
 npm run build            PASS
 npm run test:e2e:copilot PASS — real native Copilot E2E on Windows
 npm run test:e2e:fallback PASS — real VS Code-only fallback E2E on Windows
-npm test                PASS — default no-file-parallelism gate
+npm test                PASS — default Vitest parallel-file gate
 ```
 
 The native E2E builds the CLI, uses the real installed Copilot CLI with an isolated temporary profile and Git repository, installs all Common/Role plugins, verifies Common plus one Role enabled, checks Product repository settings, and verifies VS Code Marketplace registration.
