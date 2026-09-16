@@ -1,8 +1,8 @@
 # Managed User Instructions Validation Handoff
 
 Date: 2026-09-16
-CLI branch: `feat/managed-user-instructions` at `f8a0b4d4ac577ce7da01b783e483b27b4772d13b`
-Marketplace branch: `feat/managed-user-instructions` at `be8a961b796f643274e21d966cbbedef735c5f59`
+CLI implementation commit: `fc5a95c79385bb494ba102816d175bc65793b412`
+Marketplace implementation commit: `84e6241b34c775e107d67c33179105cdc7f3fef9`
 
 ## Automated gates
 
@@ -11,7 +11,7 @@ Environment: Windows `win32`, Node `v24.15.0`, npm `12.0.2`, Copilot CLI `1.0.83
 CLI repository (`<workspace>/teamai-cli-customization`):
 
 ```text
-npm test                         PASS — 14 files; 60 passed, 1 skipped
+npm test                         PASS — 14 files; 63 passed, 1 skipped
 npm run typecheck                PASS
 npm run build                    PASS
 npm run test:e2e:copilot        PASS — Real team-ai native Copilot E2E passed on win32.
@@ -22,7 +22,7 @@ Marketplace repository (`<workspace>/teamai-marketplace`):
 
 ```text
 npm run validate                 PASS — Marketplace validation passed.
-npm test                         PASS — 18 passed, 0 failed
+npm test                         PASS — 20 passed, 0 failed
 npm run test:copilot             PASS — Copilot CLI 1.0.83 local Marketplace contract passed on win32.
 ```
 
@@ -42,6 +42,8 @@ Observed assertions:
 - `init`: reference `global.instructions.md` and nested `git/commit.instructions.md` were installed under `~/.copilot/instructions/team-ai/` with byte-for-byte equality; three personal files (`copilot-instructions.md`, `instructions/personal.instructions.md`, and `instructions/private/team.instructions.md`) were unchanged.
 - `sync`: changed global content was byte-for-byte updated, removed nested content was deleted, a new nested `release/versioning.instructions.md` was created byte-for-byte, and all three personal files remained unchanged.
 - Probe output: `INIT_ASSERTIONS=passed`, `SYNC_ASSERTIONS=passed`, `REAL_FILE_DEPLOYMENT=passed`.
+
+Security-model clarification authorized for V1: visible link-like and unsafe boundaries are rejected during inspection; malicious concurrent path replacement is outside V1 scope.
 
 ## Native client discovery
 
