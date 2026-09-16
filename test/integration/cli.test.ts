@@ -1,4 +1,4 @@
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../../src/cli.js";
@@ -9,6 +9,8 @@ import { detectProjectIdentity } from "../../src/project/anchors.js";
 import {
   createFakeCopilot,
   createGitRepo,
+  createDirectoryLink,
+  isPermissionError,
   loadFakeMarketplace,
   tempDir,
   TEST_MARKETPLACE_NAME,
@@ -19,14 +21,6 @@ function capture() {
   const stdout: string[] = [];
   const stderr: string[] = [];
   return { stdout, stderr, out: (line: string) => stdout.push(line), err: (line: string) => stderr.push(line) };
-}
-
-function isPermissionError(error: unknown): boolean {
-  return ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "");
-}
-
-async function createDirectoryLink(target: string, linkPath: string): Promise<void> {
-  await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
 }
 
 describe("CLI integration with fake Copilot executable", () => {
@@ -419,10 +413,16 @@ describe("CLI integration with fake Copilot executable", () => {
     await writeFile(path.join(source, "global.instructions.md"), Buffer.from("global\r\n\0", "utf8"));
     await writeFile(path.join(source, "git", "commit.instructions.md"), "commit rules\n", "utf8");
     const personalPath = path.join(home, ".copilot", "instructions", "personal.instructions.md");
+    const privatePath = path.join(home, ".copilot", "instructions", "private", "team.instructions.md");
     const rootPersonalPath = path.join(home, ".copilot", "copilot-instructions.md");
+    const personalContent = Buffer.from("personal\r\n\0", "utf8");
+    const privateContent = Buffer.from("private\n\0", "utf8");
+    const rootPersonalContent = Buffer.from("root personal\r\n\0", "utf8");
     await mkdir(path.dirname(personalPath), { recursive: true });
-    await writeFile(personalPath, "personal\n", "utf8");
-    await writeFile(rootPersonalPath, "root personal\n", "utf8");
+    await mkdir(path.dirname(privatePath), { recursive: true });
+    await writeFile(personalPath, personalContent);
+    await writeFile(privatePath, privateContent);
+    await writeFile(rootPersonalPath, rootPersonalContent);
     const fake = await createFakeCopilot();
     const output = capture();
 
@@ -438,8 +438,9 @@ describe("CLI integration with fake Copilot executable", () => {
     const target = path.join(home, ".copilot", "instructions", "team-ai");
     expect(await readFile(path.join(target, "global.instructions.md"))).toEqual(Buffer.from("global\r\n\0", "utf8"));
     expect(await readFile(path.join(target, "git", "commit.instructions.md"), "utf8")).toBe("commit rules\n");
-    expect(await readFile(personalPath, "utf8")).toBe("personal\n");
-    expect(await readFile(rootPersonalPath, "utf8")).toBe("root personal\n");
+    expect(await readFile(personalPath)).toEqual(personalContent);
+    expect(await readFile(privatePath)).toEqual(privateContent);
+    expect(await readFile(rootPersonalPath)).toEqual(rootPersonalContent);
     expect(output.stdout).toContain("DONE create: ~/.copilot/instructions/team-ai/global.instructions.md");
     expect(output.stdout.join("\n")).not.toContain("commit rules");
   }, 15_000);
@@ -471,6 +472,20 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await runCli(["sync"], { ...base, out: actual.out, err: actual.err })).toBe(0);
     expect(await readFile(path.join(target, "global.instructions.md"), "utf8")).toBe("v2\n");
     expect(await readFile(path.join(target, "nested.instructions.md"), "utf8")).toBe("new body\n");
+
+    await rm(source, { recursive: true, force: true });
+    const removed = capture();
+    expect(await runCli(["sync"], { ...base, out: removed.out, err: removed.err })).toBe(0);
+    await expect(readFile(path.join(target, "global.instructions.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(target, "nested.instructions.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(removed.stdout).toContain("DONE remove: ~/.copilot/instructions/team-ai/global.instructions.md");
+
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(target, "stale.instructions.md"), "stale\n", "utf8");
+    const emptied = capture();
+    expect(await runCli(["sync"], { ...base, out: emptied.out, err: emptied.err })).toBe(0);
+    await expect(readFile(path.join(target, "stale.instructions.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(emptied.stdout).toContain("DONE remove: ~/.copilot/instructions/team-ai/stale.instructions.md");
   }, 20_000);
 
   test("status and doctor report current and stale managed instructions", async () => {
@@ -498,6 +513,60 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await runCli(["status"], { ...base, out: staleStatus.out, err: staleStatus.err })).toBe(0);
     expect(staleStatus.stdout.some((line) => line.includes("User instructions: stale"))).toBe(true);
   }, 20_000);
+
+  test("status reports an empty desired and installed instruction state", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-empty-status-home-");
+    const marketplace = await tempDir("team-ai-instructions-empty-status-marketplace-");
+    await mkdir(path.join(marketplace, "user-instructions"), { recursive: true });
+    await mkdir(path.join(home, ".copilot", "instructions", "team-ai"), { recursive: true });
+    await writeGlobalConfig(createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }), home);
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+    });
+    const output = capture();
+
+    expect(await runCli(["status"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+      out: output.out,
+      err: output.err,
+    })).toBe(0);
+    expect(output.stdout).toContain("  User instructions: 0 managed, current");
+  }, 10_000);
+
+  test("doctor reports an unwritable planned instruction directory without repairing", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-unwritable-doctor-home-");
+    const marketplace = await tempDir("team-ai-instructions-unwritable-doctor-marketplace-");
+    const source = path.join(marketplace, "user-instructions", "blocked");
+    const targetRoot = path.join(home, ".copilot", "instructions", "team-ai");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "new.instructions.md"), "managed\n", "utf8");
+    await mkdir(targetRoot, { recursive: true });
+    const blockedParent = path.join(targetRoot, "blocked");
+    await writeFile(blockedParent, "not a directory\n", "utf8");
+    const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
+    config.role = "api";
+    await writeGlobalConfig(config, home);
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+    });
+    const output = capture();
+
+    expect(await runCli(["doctor"], {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+      out: output.out,
+      err: output.err,
+    })).toBe(1);
+    expect(output.stdout.some((line) => line.includes("Managed user instruction target is not writable"))).toBe(true);
+    expect(await readFile(blockedParent, "utf8")).toBe("not a directory\n");
+  }, 15_000);
 
   test("status and doctor report an unsafe managed target boundary", async ({ skip }) => {
     const repo = await createGitRepo();
@@ -535,6 +604,44 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(1);
     expect(doctor.stdout.some((line) => line.includes("Marketplace user instructions could not be read") && line.includes("Unsafe managed user instruction target"))).toBe(true);
   }, 15_000);
+
+  test("doctor reports unsafe or unreadable instruction sources without repairing", async () => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-unsafe-source-home-");
+    const marketplace = await tempDir("team-ai-instructions-unsafe-source-marketplace-");
+    const source = path.join(marketplace, "user-instructions");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "managed\n", "utf8");
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+    });
+    const base = {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+    };
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], { ...base, ...capture() })).toBe(0);
+    const targetPath = path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md");
+    const managedContent = await readFile(targetPath);
+
+    await rm(source, { recursive: true, force: true });
+    await writeFile(source, "not a directory\n", "utf8");
+    const unsafeDoctor = capture();
+    expect(await runCli(["doctor"], { ...base, out: unsafeDoctor.out, err: unsafeDoctor.err })).toBe(1);
+    expect(unsafeDoctor.stdout.some((line) => line.includes("Marketplace user instructions could not be read") && line.includes("Unsafe Marketplace user instructions source"))).toBe(true);
+    expect(await readFile(targetPath)).toEqual(managedContent);
+
+    const unreadableDoctor = capture();
+    expect(await runCli(["doctor"], {
+      ...base,
+      loadMarketplace: async () => { throw new Error("Marketplace acquisition failed"); },
+      out: unreadableDoctor.out,
+      err: unreadableDoctor.err,
+    })).toBe(1);
+    expect(unreadableDoctor.stdout.some((line) => line.includes("Copilot plugin diagnostics failed") && line.includes("Marketplace acquisition failed"))).toBe(true);
+    expect(await readFile(targetPath)).toEqual(managedContent);
+  }, 20_000);
 
   test("sync keeps installed instructions when Marketplace acquisition fails", async () => {
     const repo = await createGitRepo();

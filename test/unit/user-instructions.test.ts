@@ -1,22 +1,15 @@
-import { link, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import {
   applyUserInstructionChanges,
+  checkUserInstructionState,
   convergeMarketplaceUserInstructions,
   discoverMarketplaceUserInstructions,
   planUserInstructionChanges,
   userInstructionTargetRoot,
 } from "../../src/copilot/user-instructions.js";
-import { tempDir } from "../helpers/test-utils.js";
-
-function isPermissionError(error: unknown): boolean {
-  return ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "");
-}
-
-async function createDirectoryLink(target: string, linkPath: string): Promise<void> {
-  await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
-}
+import { createDirectoryLink, isPermissionError, tempDir } from "../helpers/test-utils.js";
 
 describe("Marketplace-managed user instructions", () => {
   test("discovers nested instruction files in deterministic order and ignores other files", async () => {
@@ -206,6 +199,46 @@ describe("Marketplace-managed user instructions", () => {
 
     await expect(convergeMarketplaceUserInstructions(marketplace, home)).rejects.toThrow(/unsafe/i);
     expect(await readFile(externalTarget, "utf8")).toBe("external\n");
+  });
+
+  test("reports an unwritable planned destination when its existing parent is not a directory", async () => {
+    const home = await tempDir("team-ai-instructions-unwritable-parent-home-");
+    const targetRoot = userInstructionTargetRoot(home);
+    const blockedParent = path.join(targetRoot, "blocked");
+    await mkdir(targetRoot, { recursive: true });
+    await writeFile(blockedParent, "not a directory\n", "utf8");
+
+    const state = await checkUserInstructionState([{
+      relativePath: "blocked/new.instructions.md",
+      sourcePath: path.join(home, "source.instructions.md"),
+      content: Buffer.from("new\n"),
+    }], targetRoot);
+
+    expect(state.changes).toEqual([{ type: "create", relativePath: "blocked/new.instructions.md" }]);
+    expect(state.targetWritable).toBe(false);
+    expect(await readFile(blockedParent, "utf8")).toBe("not a directory\n");
+  });
+
+  test.skipIf(process.platform === "win32")("reports an unwritable existing parent without writing", async () => {
+    const home = await tempDir("team-ai-instructions-unwritable-parent-permissions-home-");
+    const targetRoot = userInstructionTargetRoot(home);
+    const targetPath = path.join(targetRoot, "global.instructions.md");
+    await mkdir(targetRoot, { recursive: true });
+    await writeFile(targetPath, "old\n", "utf8");
+    await chmod(targetRoot, 0o555);
+    try {
+      const state = await checkUserInstructionState([{
+        relativePath: "global.instructions.md",
+        sourcePath: path.join(home, "source.instructions.md"),
+        content: Buffer.from("new\n"),
+      }], targetRoot);
+
+      expect(state.changes).toEqual([{ type: "update", relativePath: "global.instructions.md" }]);
+      expect(state.targetWritable).toBe(false);
+      expect(await readFile(targetPath, "utf8")).toBe("old\n");
+    } finally {
+      await chmod(targetRoot, 0o755);
+    }
   });
 
   test("uses platform-safe target paths for POSIX-style homes", () => {

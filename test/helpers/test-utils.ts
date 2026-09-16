@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,14 @@ import { runProcess } from "../../src/utils/process.js";
 
 export const TEST_MARKETPLACE_NAME = "test-team-ai";
 export const TEST_MARKETPLACE_SOURCE = "https://github.com/test-org/teamai-marketplace.git";
+
+export function isPermissionError(error: unknown): boolean {
+  return ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "");
+}
+
+export async function createDirectoryLink(target: string, linkPath: string): Promise<void> {
+  await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
+}
 
 export interface FakeCopilotState {
   marketplaceName: string;

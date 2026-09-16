@@ -129,7 +129,7 @@ export async function checkUserInstructionState(
     desiredCount: desired.length,
     changes: plan.changes,
     current: plan.changes.length === 0,
-    targetWritable: plan.changes.length === 0 || await targetIsWritable(plan.targetRoot),
+    targetWritable: plan.changes.length === 0 || await plannedChangesAreWritable(plan),
   };
 }
 
@@ -243,20 +243,27 @@ async function ensureSafeTargetChain(targetRoot: string): Promise<void> {
   }
 }
 
-async function targetIsWritable(targetRoot: string): Promise<boolean> {
-  let directory = targetRoot;
+async function plannedChangesAreWritable(plan: UserInstructionPlan): Promise<boolean> {
+  for (const change of plan.changes) {
+    const targetPath = safeTargetPath(plan.targetRoot, change.relativePath);
+    if (!await operationDirectoryIsWritable(path.dirname(targetPath))) return false;
+  }
+  return true;
+}
+
+async function operationDirectoryIsWritable(directory: string): Promise<boolean> {
+  let current = path.resolve(directory);
   while (true) {
     try {
-      const info = await lstat(directory);
-      if (directory === targetRoot && (info.isSymbolicLink() || !info.isDirectory())) return false;
-      if (directory !== targetRoot && !info.isDirectory() && !info.isSymbolicLink()) return false;
-      await access(directory, constants.W_OK);
+      const info = await lstat(current);
+      if (await isLinkLike(current, info) || !info.isDirectory()) return false;
+      await access(current, constants.W_OK);
       return true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
-      const parent = path.dirname(directory);
-      if (parent === directory) return false;
-      directory = parent;
+      const parent = path.dirname(current);
+      if (parent === current) return false;
+      current = parent;
     }
   }
 }

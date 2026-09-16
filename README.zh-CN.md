@@ -91,6 +91,8 @@ user-instructions/**/*.instructions.md
 
 `team-ai init` 和 `team-ai sync` 会按原始字节将这些文件镜像到受 Team AI 管理的用户级目录 `~/.copilot/instructions/team-ai/`，并保留相对路径。该目录属于 Team AI；个人 instructions 应放在 `~/.copilot/instructions/` 下的其他位置。文件名和目录名只用于组织内容，Team AI 不赋予 company、department、role 或 action 语义，Copilot 原生 frontmatter 也不会被改写。
 
+这是禁止 arbitrary 或 generic resource copying/injection 的唯一窄例外：具体 use case 是部署部门批准的 Copilot 用户级 instructions。Marketplace maintainer 负责内容 ownership 与 review；Team AI 只拥有 `~/.copilot/instructions/team-ai/`，并在那里镜像 frozen 的 `user-instructions/**/*.instructions.md` contract。CLI 只接受 regular 且单一 link count 的文件，拒绝 source/target 的 link-like path 与越界边界，使用 atomic write，并保持其他用户 instructions 不变。该 ownership 与 security boundary 已结合 frozen spec 和 implementation plan 审查；没有引入通用 copier architecture。
+
 ## 第一次初始化
 
 首次初始化支持四种交互组合：
@@ -154,7 +156,7 @@ team-ai doctor
 
 ### `team-ai sync`
 
-`sync` 表示 convergence / repair：补齐缺失的 Team AI-owned User Plugin，恢复 enablement，刷新 Marketplace 注册和 VS Code Marketplace 注册，并刷新 Project machine state。它不会把中央 Skills、Agents、Instructions、Hooks 或 MCP 定义复制进业务 Repo。
+`sync` 表示 convergence / repair：补齐缺失的 Team AI-owned User Plugin，恢复 enablement，刷新 Marketplace 注册和 VS Code Marketplace 注册，并刷新 Project machine state。它不会把中央 Skills、Agents、Instructions、Hooks 或 MCP 定义复制进业务 Repo，也不提供 arbitrary 或 generic resource copying。
 
 ### `team-ai role`
 
@@ -243,7 +245,7 @@ npm test
 
 ## 当前不做
 
-本项目不实现默认 Marketplace、多 Marketplace merge/overlay/precedence、Package Manager、另一套 Agent Runtime、通用 IDE abstraction、自定义 Plugin/Skill/Hook/MCP 格式、资源复制/injection、通用 overlay engine、telemetry、dashboard、TeamWiki/Recall/Learning，也不创建自定义 Product/Project database。
+本项目不实现默认 Marketplace、多 Marketplace merge/overlay/precedence、Package Manager、另一套 Agent Runtime、通用 IDE abstraction、自定义 Plugin/Skill/Hook/MCP 格式、arbitrary 或 generic resource copying/injection（唯一窄例外是上文 frozen 的 Marketplace-managed `user-instructions/**/*.instructions.md` contract）、通用 overlay engine、telemetry、dashboard、TeamWiki/Recall/Learning，也不创建自定义 Product/Project database。
 
 ## 项目文档
 

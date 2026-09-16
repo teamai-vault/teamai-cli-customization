@@ -17,7 +17,7 @@ Product -> Repo-enabled Plugin
 Project -> real business Git repository .github/*
 ```
 
-The implementation must not become another agent runtime, package manager, IDE abstraction, resource copier, overlay engine, or knowledge system.
+The implementation must not become another agent runtime, package manager, IDE abstraction, arbitrary or generic resource copier/injection framework, overlay engine, or knowledge system. The sole frozen narrow exception is mirroring Marketplace-managed `user-instructions/**/*.instructions.md` into the Team AI-owned user subtree for the concrete department-instructions use case.
 
 ## 2. Frozen contracts
 
@@ -143,6 +143,8 @@ src/copilot/vscode-settings.ts
 src/copilot/project-settings.ts
                             Product declaration merge
 src/copilot/plugins.ts     desired state and managed ownership convergence
+src/copilot/user-instructions.ts
+                            frozen Marketplace-managed user instruction mirroring
 src/commands/init.ts       onboarding and first-time setup
 src/commands/role.ts       role listing and switching
 src/commands/sync.ts       convergence/repair
@@ -173,6 +175,8 @@ Project remains the real Git repository and is not a Plugin type. Skills, Agents
 `managedPlugins` records explicit Team AI ownership. Convergence may install, enable, disable, update, or repair only those plugins. A pre-existing user-owned or third-party plugin is not claimed from its name, and its enabled/version state is preserved.
 
 All Copilot and VS Code settings operations are read-modify-write operations. Unknown native fields, unrelated Marketplaces, unrelated plugins, comments, and trailing commas are preserved where the format supports them. Dry-run must not mutate Copilot, VS Code, repository, or machine state.
+
+The concrete resource deployment use case is department-approved native Copilot user instructions. Marketplace maintainers own and review the content; Team AI owns only `~/.copilot/instructions/team-ai/` and mirrors the frozen `user-instructions/**/*.instructions.md` tree there. The CLI rejects arbitrary or generic resource copying/injection, validates regular single-link-count files and source/target path boundaries, uses atomic writes, and preserves all personal instruction locations. This narrow boundary and its security checks were reviewed against the frozen spec and this approved plan; no generic copier architecture is introduced.
 
 ## 7. Validation plan and current status
 
@@ -211,7 +215,7 @@ Keep the following out of the implementation until a concrete requirement, owner
 - Marketplace package management or contribution automation;
 - generic IDE/provider adapters;
 - custom Plugin, Skill, Hook, or MCP formats;
-- resource copying or injection;
+- arbitrary or generic resource copying or injection (the only narrow exception is the frozen Marketplace-managed `user-instructions/**/*.instructions.md` contract described above);
 - Hook/MCP execution by Team AI;
 - telemetry, dashboards, TeamWiki, Recall, or Learning;
 - a custom Product/Project database or session store.

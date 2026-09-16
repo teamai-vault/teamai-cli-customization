@@ -91,6 +91,8 @@ user-instructions/**/*.instructions.md
 
 `team-ai init` and `team-ai sync` mirror those files byte-for-byte into the managed user-level directory `~/.copilot/instructions/team-ai/`, preserving relative paths. The directory is Team AI-owned; keep personal instructions elsewhere under `~/.copilot/instructions/`. File and folder names only organize content—Team AI does not assign company, department, role, or action semantics, and native Copilot frontmatter remains unchanged.
 
+This is the only narrow exception to the prohibition on arbitrary or generic resource copying/injection: the concrete use case is deploying department-approved Copilot user instructions. Marketplace maintainers own and review the content; Team AI owns only `~/.copilot/instructions/team-ai/` and mirrors the frozen `user-instructions/**/*.instructions.md` contract there. The CLI accepts regular single-link-count files, rejects link-like source/target paths and unsafe boundaries, writes atomically, and leaves all other user instructions untouched. This ownership and security boundary was reviewed with the frozen spec and implementation plan; no generic copier architecture is introduced.
+
 ## First-time initialization
 
 The four first-time interactive combinations are:
@@ -154,7 +156,7 @@ All write commands support the global `--dry-run` option. A first-time dry run c
 
 ### `team-ai sync`
 
-`sync` means convergence and repair. It installs missing Team AI-owned user plugins, restores enablement, refreshes Marketplace registration, updates VS Code Marketplace registration, and refreshes project machine state. It does not copy central Skills, Agents, Instructions, Hooks, or MCP definitions into the project.
+`sync` means convergence and repair. It installs missing Team AI-owned user plugins, restores enablement, refreshes Marketplace registration, updates VS Code Marketplace registration, and refreshes project machine state. It does not copy central Skills, Agents, Instructions, Hooks, or MCP definitions into the project, and it does not provide arbitrary or generic resource copying.
 
 ### `team-ai role`
 
@@ -243,7 +245,7 @@ The two E2E scripts create isolated temporary profiles and repositories. `test:e
 
 ## Non-goals
 
-This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, resource copying/injection, a generic overlay engine, telemetry, dashboards, TeamWiki/Recall/Learning, or a custom Product/Project database.
+This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, arbitrary or generic resource copying/injection (the only narrow exception is the frozen Marketplace-managed `user-instructions/**/*.instructions.md` contract described above), a generic overlay engine, telemetry, dashboards, TeamWiki/Recall/Learning, or a custom Product/Project database.
 
 ## Project documents
 
