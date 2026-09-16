@@ -8,7 +8,7 @@ Marketplace branch: `feat/managed-user-instructions` at `be8a961b796f643274e21d9
 
 Environment: Windows `win32`, Node `v24.15.0`, npm `12.0.2`, Copilot CLI `1.0.83`.
 
-CLI repository (`F:/agent-workspace/multiAgent/teamai-cli-customization/teamai-cli-customization`):
+CLI repository (`<workspace>/teamai-cli-customization`):
 
 ```text
 npm test                         PASS — 14 files; 60 passed, 1 skipped
@@ -18,7 +18,7 @@ npm run test:e2e:copilot        PASS — Real team-ai native Copilot E2E passed 
 npm run test:e2e:fallback        PASS — Fallback materialization and native Copilot recognition passed on win32.
 ```
 
-Marketplace repository (`F:/agent-workspace/multiAgent/teamai-cli-customization/teamai-marketplace`):
+Marketplace repository (`<workspace>/teamai-marketplace`):
 
 ```text
 npm run validate                 PASS — Marketplace validation passed.
@@ -33,8 +33,8 @@ The reference Marketplace was archived from its task-branch `HEAD` into a tempor
 Commands executed:
 
 ```text
-node F:/agent-workspace/multiAgent/teamai-cli-customization/teamai-cli-customization/dist/cli.js init --marketplace F:/agent-workspace/codex/.tmp/ticket03-native-5d95e0c2ab3f407e890f199eee857f40/marketplace --role api --product teamai
-node F:/agent-workspace/multiAgent/teamai-cli-customization/teamai-cli-customization/dist/cli.js sync
+node <workspace>/teamai-cli-customization/dist/cli.js init --marketplace <temp>/ticket03-native-<run>/marketplace --role api --product teamai
+node <workspace>/teamai-cli-customization/dist/cli.js sync
 ```
 
 Observed assertions:
@@ -49,10 +49,10 @@ Copilot CLI `1.0.83` documents `/instructions` (“View and toggle custom instru
 
 The isolated probe used a unique marker and was cleaned up. `copilot -p /instructions` could not authenticate: the isolated profile had no authentication information, and the only available `GH_TOKEN` was a classic PAT rejected by the CLI (`Classic PATs are not supported`). A text-only `copilot -i /instructions --screen-reader ...` probe had no non-interactive completion and was stopped at the 90-second safety limit. Therefore actual Copilot CLI discovery is **not verified** here; file existence is not treated as discovery.
 
-VS Code `1.137.0` is installed at `D:/soft/Microsoft VS Code/Code.exe`. Using its valid CLI at `D:/soft/Microsoft VS Code/bin/code.cmd`, `--list-extensions --show-versions` reports only `intellsmi.comment-translate@3.1.0` and `wsr-7.easymail@0.4.0`; no GitHub Copilot/Copilot Chat extension is installed. The PATH `code.cmd` shim at `D:/soft/bin/code.cmd` is a 41-byte zero-filled file. The valid VS Code CLI `--help` exposes no user-instruction discovery diagnostic. Therefore VS Code discovery is **not verified** here.
+VS Code `1.137.0` is installed. Using `<code-cli>`, `--list-extensions --show-versions` finds no GitHub Copilot/Copilot Chat extension. The PATH shim for `<code-cli>` is invalid (41-byte zero-filled file). The valid VS Code CLI `--help` exposes no user-instruction discovery diagnostic. Therefore VS Code discovery is **not verified** here.
 
 ## Cleanup
 
-The isolated profile, repository, Marketplace copy, logs, and probe scripts were removed in `finally`; the cleanup assertion was `CLEANUP_PROBE_ROOT_REMOVED=True`. A final scan found no `ticket03-*` entries under `F:/agent-workspace/codex/.tmp`. Existing unrelated temporary entries were not touched.
+The isolated profile, repository, Marketplace copy, logs, and probe scripts were removed in `finally`; the cleanup assertion was `CLEANUP_PROBE_ROOT_REMOVED=True`. A final scan found no `ticket03-*` entries under `<temp-root>`. Existing unrelated temporary entries were not touched.
 
 Unresolved acceptance items: observable native Copilot CLI discovery and VS Code discovery require an authenticated Copilot CLI session and an installed Copilot VS Code extension with a text/CLI diagnostic path.
