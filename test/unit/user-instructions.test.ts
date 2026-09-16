@@ -1,13 +1,22 @@
-import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import {
   applyUserInstructionChanges,
+  convergeMarketplaceUserInstructions,
   discoverMarketplaceUserInstructions,
   planUserInstructionChanges,
   userInstructionTargetRoot,
 } from "../../src/copilot/user-instructions.js";
 import { tempDir } from "../helpers/test-utils.js";
+
+function isPermissionError(error: unknown): boolean {
+  return ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "");
+}
+
+async function createDirectoryLink(target: string, linkPath: string): Promise<void> {
+  await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
+}
 
 describe("Marketplace-managed user instructions", () => {
   test("discovers nested instruction files in deterministic order and ignores other files", async () => {
@@ -33,14 +42,58 @@ describe("Marketplace-managed user instructions", () => {
     await expect(discoverMarketplaceUserInstructions(marketplace)).resolves.toEqual([]);
   });
 
-  test.skipIf(process.platform === "win32")("does not follow source symlinks", async () => {
+  test("does not follow source symlinks", async ({ skip }) => {
     const marketplace = await tempDir("team-ai-instructions-link-source-");
     const external = await tempDir("team-ai-instructions-link-external-");
     await mkdir(path.join(marketplace, "user-instructions"), { recursive: true });
     await writeFile(path.join(external, "outside.instructions.md"), "outside\n", "utf8");
-    await symlink(path.join(external, "outside.instructions.md"), path.join(marketplace, "user-instructions", "outside.instructions.md"));
+    try {
+      await createDirectoryLink(external, path.join(marketplace, "user-instructions", "external"));
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
 
     await expect(discoverMarketplaceUserInstructions(marketplace)).resolves.toEqual([]);
+  });
+
+  test("ignores hard-linked source instructions", async ({ skip }) => {
+    const marketplace = await tempDir("team-ai-instructions-hard-source-");
+    const external = await tempDir("team-ai-instructions-hard-external-");
+    const sourceRoot = path.join(marketplace, "user-instructions");
+    const externalFile = path.join(external, "outside.instructions.md");
+    await mkdir(sourceRoot, { recursive: true });
+    await writeFile(externalFile, "outside\n", "utf8");
+    try {
+      await link(externalFile, path.join(sourceRoot, "outside.instructions.md"));
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
+
+    await expect(discoverMarketplaceUserInstructions(marketplace)).resolves.toEqual([]);
+  });
+
+  test("rejects an existing non-directory source root", async () => {
+    const marketplace = await tempDir("team-ai-instructions-file-source-");
+    await writeFile(path.join(marketplace, "user-instructions"), "not a directory\n", "utf8");
+
+    await expect(discoverMarketplaceUserInstructions(marketplace)).rejects.toThrow(/unsafe/i);
+  });
+
+  test("rejects a link-like source root", async ({ skip }) => {
+    const marketplace = await tempDir("team-ai-instructions-link-root-");
+    const external = await tempDir("team-ai-instructions-link-root-external-");
+    const sourceRoot = path.join(marketplace, "user-instructions");
+    await writeFile(path.join(external, "outside.instructions.md"), "outside\n", "utf8");
+    try {
+      await createDirectoryLink(external, sourceRoot);
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
+
+    await expect(discoverMarketplaceUserInstructions(marketplace)).rejects.toThrow(/unsafe/i);
   });
 
   test("plans and applies byte-preserving create, update, and remove changes", async () => {
@@ -98,19 +151,68 @@ describe("Marketplace-managed user instructions", () => {
     }], userInstructionTargetRoot(home))).rejects.toThrow(/unsafe/i);
   });
 
-  test.skipIf(process.platform === "win32")("rejects a link in the managed target tree", async () => {
+  test("rejects a link in the managed target tree", async ({ skip }) => {
     const home = await tempDir("team-ai-instructions-link-target-home-");
     const external = await tempDir("team-ai-instructions-link-target-external-");
     const targetRoot = userInstructionTargetRoot(home);
     await mkdir(targetRoot, { recursive: true });
     await writeFile(path.join(external, "outside.instructions.md"), "outside\n", "utf8");
-    await symlink(path.join(external, "outside.instructions.md"), path.join(targetRoot, "outside.instructions.md"));
+    try {
+      await createDirectoryLink(external, path.join(targetRoot, "external"));
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
 
     await expect(planUserInstructionChanges([], targetRoot)).rejects.toThrow(/unsafe/i);
   });
 
+  test("rejects hard-linked managed target instructions without modifying the external file", async ({ skip }) => {
+    const home = await tempDir("team-ai-instructions-hard-target-home-");
+    const external = await tempDir("team-ai-instructions-hard-target-external-");
+    const targetRoot = userInstructionTargetRoot(home);
+    const externalFile = path.join(external, "outside.instructions.md");
+    await mkdir(targetRoot, { recursive: true });
+    await writeFile(externalFile, "outside\n", "utf8");
+    try {
+      await link(externalFile, path.join(targetRoot, "outside.instructions.md"));
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
+
+    await expect(planUserInstructionChanges([], targetRoot)).rejects.toThrow(/unsafe/i);
+    expect(await readFile(externalFile, "utf8")).toBe("outside\n");
+  });
+
+  test("rejects link-like target ancestors without writing outside the managed root", async ({ skip }) => {
+    const home = await tempDir("team-ai-instructions-link-ancestor-home-");
+    const external = await tempDir("team-ai-instructions-link-ancestor-external-");
+    const marketplace = await tempDir("team-ai-instructions-link-ancestor-marketplace-");
+    const sourceRoot = path.join(marketplace, "user-instructions");
+    const externalCopilot = path.join(external, ".copilot");
+    await mkdir(sourceRoot, { recursive: true });
+    await writeFile(path.join(sourceRoot, "global.instructions.md"), "managed\n", "utf8");
+    await mkdir(externalCopilot, { recursive: true });
+    const externalTarget = path.join(externalCopilot, "instructions", "team-ai", "global.instructions.md");
+    await mkdir(path.dirname(externalTarget), { recursive: true });
+    await writeFile(externalTarget, "external\n", "utf8");
+    try {
+      await createDirectoryLink(externalCopilot, path.join(home, ".copilot"));
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
+
+    await expect(convergeMarketplaceUserInstructions(marketplace, home)).rejects.toThrow(/unsafe/i);
+    expect(await readFile(externalTarget, "utf8")).toBe("external\n");
+  });
+
   test("uses platform-safe target paths for POSIX-style homes", () => {
-    expect(userInstructionTargetRoot("/Users/example")).toBe(path.join("/Users/example", ".copilot", "instructions", "team-ai"));
+    const expected = process.platform === "win32"
+      ? "\\Users\\example\\.copilot\\instructions\\team-ai"
+      : "/Users/example/.copilot/instructions/team-ai";
+    expect(userInstructionTargetRoot("/Users/example")).toBe(expected);
   });
 
   test("normalizes Windows-style relative paths before planning", async () => {

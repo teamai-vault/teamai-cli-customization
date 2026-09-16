@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, lstat, mkdir, readdir, readFile, unlink } from "node:fs/promises";
+import { access, lstat, mkdir, readdir, readFile, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
 import { atomicWriteFile } from "../utils/fs.js";
 
@@ -46,7 +46,9 @@ export async function discoverMarketplaceUserInstructions(marketplaceRoot: strin
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw sourceReadError(sourceRoot, error);
   }
-  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) return [];
+  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink() || await isLinkLike(sourceRoot, sourceStat)) {
+    throw unsafeSourceError(sourceRoot);
+  }
 
   const discovered: ManagedUserInstruction[] = [];
   await walkSource(sourceRoot, sourceRoot, discovered);
@@ -102,6 +104,7 @@ export async function applyUserInstructionChanges(
     }
     const instruction = desired.get(change.relativePath);
     if (!instruction) throw new Error(`Missing desired Marketplace user instruction '${change.relativePath}'.`);
+    await ensureSafeTargetChain(path.dirname(targetPath));
     await atomicWriteFile(targetPath, instruction.content);
   }
 }
@@ -145,12 +148,12 @@ async function walkSource(directory: string, root: string, result: ManagedUserIn
     } catch (error) {
       throw sourceReadError(entryPath, error);
     }
-    if (entryStat.isSymbolicLink()) continue;
+    if (await isLinkLike(entryPath, entryStat)) continue;
     if (entryStat.isDirectory()) {
       await walkSource(entryPath, root, result);
       continue;
     }
-    if (!entryStat.isFile() || !entry.name.endsWith(INSTRUCTION_SUFFIX)) continue;
+    if (!entryStat.isFile() || entryStat.nlink !== 1 || !entry.name.endsWith(INSTRUCTION_SUFFIX)) continue;
     let content: Buffer;
     try {
       content = await readFile(entryPath);
@@ -192,27 +195,52 @@ async function walkTarget(directory: string, root: string, result: Map<string, B
     } catch (error) {
       throw new Error(`Could not read managed user instruction target '${entryPath}': ${(error as Error).message}`);
     }
-    if (entryStat.isSymbolicLink()) throw unsafeTargetError(entryPath);
+    if (await isLinkLike(entryPath, entryStat)) throw unsafeTargetError(entryPath);
     if (entryStat.isDirectory()) {
       await walkTarget(entryPath, root, result);
       continue;
     }
     if (!entryStat.isFile() || !entry.name.endsWith(INSTRUCTION_SUFFIX)) continue;
+    if (entryStat.nlink !== 1) throw unsafeTargetError(entryPath);
     result.set(toPortableRelativePath(path.relative(root, entryPath)), await readFile(entryPath));
   }
 }
 
 async function ensureTargetRoot(targetRoot: string, create: boolean): Promise<void> {
+  await ensureSafeTargetChain(targetRoot);
   try {
     const info = await lstat(targetRoot);
-    if (info.isSymbolicLink() || !info.isDirectory()) throw unsafeTargetError(targetRoot);
+    if (await isLinkLike(targetRoot, info) || !info.isDirectory()) throw unsafeTargetError(targetRoot);
     return;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT" || !create) throw error;
   }
   await mkdir(targetRoot, { recursive: true });
+  await ensureSafeTargetChain(targetRoot);
   const info = await lstat(targetRoot);
-  if (info.isSymbolicLink() || !info.isDirectory()) throw unsafeTargetError(targetRoot);
+  if (await isLinkLike(targetRoot, info) || !info.isDirectory()) throw unsafeTargetError(targetRoot);
+}
+
+async function ensureSafeTargetChain(targetRoot: string): Promise<void> {
+  let current = path.resolve(targetRoot);
+  while (true) {
+    let info;
+    try {
+      info = await lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        const parent = path.dirname(current);
+        if (parent === current) return;
+        current = parent;
+        continue;
+      }
+      throw error;
+    }
+    if (await isLinkLike(current, info) || !info.isDirectory()) throw unsafeTargetError(current);
+    const parent = path.dirname(current);
+    if (parent === current) return;
+    current = parent;
+  }
 }
 
 async function targetIsWritable(targetRoot: string): Promise<boolean> {
@@ -266,8 +294,30 @@ function comparePaths(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+async function isLinkLike(filePath: string, info: { isSymbolicLink(): boolean }): Promise<boolean> {
+  if (info.isSymbolicLink()) return true;
+  try {
+    return !samePath(filePath, await realpath(filePath));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+    throw error;
+  }
+}
+
+function samePath(left: string, right: string): boolean {
+  const normalizedLeft = path.normalize(path.resolve(left));
+  const normalizedRight = path.normalize(path.resolve(right));
+  return process.platform === "win32"
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight;
+}
+
 function sourceReadError(filePath: string, error: unknown): Error {
   return new Error(`Could not read Marketplace user instructions at '${filePath}': ${(error as Error).message}`);
+}
+
+function unsafeSourceError(filePath: string): Error {
+  return new Error(`Unsafe Marketplace user instructions source '${filePath}'.`);
 }
 
 function unsafeTargetError(filePath: string): Error {

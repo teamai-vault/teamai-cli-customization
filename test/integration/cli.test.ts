@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../../src/cli.js";
@@ -19,6 +19,14 @@ function capture() {
   const stdout: string[] = [];
   const stderr: string[] = [];
   return { stdout, stderr, out: (line: string) => stdout.push(line), err: (line: string) => stderr.push(line) };
+}
+
+function isPermissionError(error: unknown): boolean {
+  return ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "");
+}
+
+async function createDirectoryLink(target: string, linkPath: string): Promise<void> {
+  await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
 }
 
 describe("CLI integration with fake Copilot executable", () => {
@@ -490,6 +498,43 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await runCli(["status"], { ...base, out: staleStatus.out, err: staleStatus.err })).toBe(0);
     expect(staleStatus.stdout.some((line) => line.includes("User instructions: stale"))).toBe(true);
   }, 20_000);
+
+  test("status and doctor report an unsafe managed target boundary", async ({ skip }) => {
+    const repo = await createGitRepo();
+    const home = await tempDir("team-ai-instructions-unsafe-boundary-home-");
+    const marketplace = await tempDir("team-ai-instructions-unsafe-boundary-marketplace-");
+    const external = await tempDir("team-ai-instructions-unsafe-boundary-external-");
+    const source = path.join(marketplace, "user-instructions");
+    const externalCopilot = path.join(external, ".copilot");
+    await mkdir(source, { recursive: true });
+    await writeFile(path.join(source, "global.instructions.md"), "managed\n", "utf8");
+    await mkdir(externalCopilot, { recursive: true });
+    try {
+      await createDirectoryLink(externalCopilot, path.join(home, ".copilot"));
+    } catch (error) {
+      if (isPermissionError(error)) return skip();
+      throw error;
+    }
+    const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
+    await writeGlobalConfig(config, home);
+    const fake = await createFakeCopilot({
+      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
+    });
+    const base = {
+      cwd: repo,
+      homeDir: home,
+      copilot: fake.client,
+      loadMarketplace: async () => loadFakeMarketplace(marketplace),
+    };
+
+    const status = capture();
+    expect(await runCli(["status"], { ...base, out: status.out, err: status.err })).toBe(0);
+    expect(status.stdout.some((line) => line.includes("User instructions: unavailable") && line.includes("Unsafe managed user instruction target"))).toBe(true);
+
+    const doctor = capture();
+    expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(1);
+    expect(doctor.stdout.some((line) => line.includes("Marketplace user instructions could not be read") && line.includes("Unsafe managed user instruction target"))).toBe(true);
+  }, 15_000);
 
   test("sync keeps installed instructions when Marketplace acquisition fails", async () => {
     const repo = await createGitRepo();

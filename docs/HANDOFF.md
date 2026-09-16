@@ -28,7 +28,7 @@ Copilot CLI is the preferred backend. If Copilot CLI is unavailable but VS Code 
 .github/plugin/marketplace.json
 ```
 
-The current catalog version is `0.2.0`; the current CLI package version is `0.1.1`.
+The current catalog version is `0.2.0`; the current CLI package version is `0.2.0`.
 
 The reference catalog contains:
 
