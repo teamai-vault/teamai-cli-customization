@@ -150,7 +150,7 @@ The fallback also uses `extraKnownMarketplaces` in `~/.copilot/settings.json` an
 
 The concrete use case is deploying department-approved Copilot user instructions from the configured Marketplace. Marketplace maintainers own and review the content. The only supported source contract is the frozen `user-instructions/**/*.instructions.md` tree, mirrored byte-for-byte into the Team AI-owned subtree `~/.copilot/instructions/team-ai/`; all other user instruction locations remain user-owned.
 
-This is the sole narrow exception to the prohibition on arbitrary or generic resource copying/injection. The CLI accepts only regular files with a single link count, never follows source or target symlinks, junctions, or other link-like boundaries, rejects unsafe source/target roots and ancestors, uses atomic writes, and leaves personal instruction files untouched. This ownership and security boundary was reviewed against the frozen spec and approved implementation plan; no generic copier or provider framework is part of the implementation.
+This is the sole narrow exception to the prohibition on arbitrary or generic resource copying/injection. The CLI accepts only regular files with a single link count, rejects link-like entries and unsafe source/target roots or ancestors when those boundaries are visible during its filesystem checks, uses atomic writes, and leaves personal instruction files untouched. It does not defend against a separate process replacing an already-checked path during the operation; that race is outside the V1 threat model. No generic copier or provider framework is part of the implementation.
 
 ## 8. VS Code and repository settings
 

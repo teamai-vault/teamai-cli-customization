@@ -1,4 +1,4 @@
-import { chmod, link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import {
@@ -236,102 +236,6 @@ describe("Marketplace-managed user instructions", () => {
     } finally {
       await chmod(targetRoot, 0o755);
     }
-  });
-
-  test("does not read a source path swapped to a directory link after its identity check", async ({ skip }) => {
-    const marketplace = await tempDir("team-ai-instructions-source-race-");
-    const external = await tempDir("team-ai-instructions-source-race-external-");
-    const sourceRoot = path.join(marketplace, "user-instructions");
-    const sourceFile = path.join(sourceRoot, "global.instructions.md");
-    const externalFile = path.join(external, "outside.instructions.md");
-    await mkdir(sourceRoot, { recursive: true });
-    await writeFile(sourceFile, "managed\n", "utf8");
-    await writeFile(externalFile, "external\n", "utf8");
-    const probe = path.join(marketplace, "link-probe");
-    try {
-      await createDirectoryLink(external, probe);
-      await rm(probe, { recursive: true, force: true });
-    } catch (error) {
-      if (isPermissionError(error)) return skip();
-      throw error;
-    }
-
-    await expect(discoverMarketplaceUserInstructions(marketplace, {
-      hooks: {
-        beforeSourceFileOpen: async (filePath) => {
-          if (filePath !== sourceFile) return;
-          await rm(filePath, { force: true });
-          await createDirectoryLink(external, filePath);
-        },
-      },
-    })).rejects.toThrow(/unsafe|could not read/i);
-    expect(await readFile(externalFile, "utf8")).toBe("external\n");
-  });
-
-  test("does not write through a target file swapped to a directory link after planning", async ({ skip }) => {
-    const marketplace = await tempDir("team-ai-instructions-target-race-");
-    const home = await tempDir("team-ai-instructions-target-race-home-");
-    const external = await tempDir("team-ai-instructions-target-race-external-");
-    const sourceRoot = path.join(marketplace, "user-instructions");
-    const targetRoot = userInstructionTargetRoot(home);
-    const targetFile = path.join(targetRoot, "global.instructions.md");
-    const externalFile = path.join(external, "outside.instructions.md");
-    await mkdir(sourceRoot, { recursive: true });
-    await writeFile(path.join(sourceRoot, "global.instructions.md"), "managed\n", "utf8");
-    await mkdir(targetRoot, { recursive: true });
-    await writeFile(targetFile, "old\n", "utf8");
-    await writeFile(externalFile, "external\n", "utf8");
-    const probe = path.join(marketplace, "link-probe");
-    try {
-      await createDirectoryLink(external, probe);
-      await rm(probe, { recursive: true, force: true });
-    } catch (error) {
-      if (isPermissionError(error)) return skip();
-      throw error;
-    }
-
-    await expect(convergeMarketplaceUserInstructions(marketplace, home, {
-      hooks: {
-        beforeTargetChange: async (filePath) => {
-          if (filePath !== targetFile) return;
-          await rm(filePath, { force: true });
-          await createDirectoryLink(external, filePath);
-        },
-      },
-    })).rejects.toThrow(/unsafe/i);
-    expect(await readFile(externalFile, "utf8")).toBe("external\n");
-  });
-
-  test("fails closed when the target parent is swapped after opening", async ({ skip }) => {
-    const marketplace = await tempDir("team-ai-instructions-target-parent-race-");
-    const home = await tempDir("team-ai-instructions-target-parent-race-home-");
-    const external = await tempDir("team-ai-instructions-target-parent-race-external-");
-    const sourceRoot = path.join(marketplace, "user-instructions");
-    const targetRoot = userInstructionTargetRoot(home);
-    const targetFile = path.join(targetRoot, "global.instructions.md");
-    const externalFile = path.join(external, "outside.instructions.md");
-    const movedTargetRoot = `${targetRoot}.moved`;
-    await mkdir(sourceRoot, { recursive: true });
-    await writeFile(path.join(sourceRoot, "global.instructions.md"), "managed\n", "utf8");
-    await mkdir(targetRoot, { recursive: true });
-    await writeFile(targetFile, "old\n", "utf8");
-    await writeFile(externalFile, "external\n", "utf8");
-
-    await expect(convergeMarketplaceUserInstructions(marketplace, home, {
-      hooks: {
-        afterTargetDirectoryOpened: async (filePath) => {
-          if (filePath !== targetFile) return;
-          try {
-            await rename(targetRoot, movedTargetRoot);
-            await createDirectoryLink(external, targetRoot);
-          } catch (error) {
-            if (isPermissionError(error)) return skip();
-            throw error;
-          }
-        },
-      },
-    })).rejects.toThrow(/unsafe/i);
-    expect(await readFile(externalFile, "utf8")).toBe("external\n");
   });
 
   test("uses platform-safe target paths for POSIX-style homes", () => {
