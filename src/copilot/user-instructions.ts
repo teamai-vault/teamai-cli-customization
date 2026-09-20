@@ -37,7 +37,7 @@ export function userInstructionDisplayPath(relativePath: string): string {
 }
 
 export async function discoverMarketplaceUserInstructions(marketplaceRoot: string): Promise<ManagedUserInstruction[]> {
-  const sourceRoot = path.resolve(marketplaceRoot, "user-instructions");
+  const sourceRoot = path.resolve(marketplaceRoot, "instructions");
   let sourceStat;
   try {
     sourceStat = await lstat(sourceRoot);

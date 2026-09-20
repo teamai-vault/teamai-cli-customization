@@ -86,12 +86,12 @@ Plugin 名称不再编码 kind。CLI 读取统一的 metadata namespace `com.com
 Marketplace 可以选择性提供任意层级的原生 Copilot instruction 文件：
 
 ```text
-user-instructions/**/*.instructions.md
+instructions/**/*.instructions.md
 ```
 
 `team-ai init` 和 `team-ai sync` 会按原始字节将这些文件镜像到受 Team AI 管理的用户级目录 `~/.copilot/instructions/team-ai/`，并保留相对路径。该目录属于 Team AI；个人 instructions 应放在 `~/.copilot/instructions/` 下的其他位置。文件名和目录名只用于组织内容，Team AI 不赋予 company、department、role 或 action 语义，Copilot 原生 frontmatter 也不会被改写。
 
-这是禁止 arbitrary 或 generic resource copying/injection 的唯一窄例外：具体 use case 是部署部门批准的 Copilot 用户级 instructions。Marketplace maintainer 负责内容 ownership 与 review；Team AI 只拥有 `~/.copilot/instructions/team-ai/`，并在那里镜像 frozen 的 `user-instructions/**/*.instructions.md` contract。CLI 只接受 regular 且单一 link count 的文件；在 filesystem check 可观察到 link-like entry 或 unsafe source/target boundary 时拒绝，使用 atomic write，并保持其他用户 instructions 不变。它不防御独立进程在操作期间替换已检查路径的竞态；该竞态不在 V1 threat model 内。
+这是禁止 arbitrary 或 generic resource copying/injection 的唯一窄例外：具体 use case 是部署部门批准的 Copilot 用户级 instructions。Marketplace maintainer 负责内容 ownership 与 review；Team AI 只拥有 `~/.copilot/instructions/team-ai/`，并在那里镜像 frozen 的 `instructions/**/*.instructions.md` contract。CLI 只接受 regular 且单一 link count 的文件；在 filesystem check 可观察到 link-like entry 或 unsafe source/target boundary 时拒绝，使用 atomic write，并保持其他用户 instructions 不变。它不防御独立进程在操作期间替换已检查路径的竞态；该竞态不在 V1 threat model 内。
 
 如果 Copilot CLI 和 VS Code 都不可用，`init`/`sync` 仍会 convergence 这棵文件树，但会返回明确错误说明 Plugin convergence 无法运行；命令不能伪报完整初始化或同步成功。
 
@@ -247,7 +247,7 @@ npm test
 
 ## 当前不做
 
-本项目不实现默认 Marketplace、多 Marketplace merge/overlay/precedence、Package Manager、另一套 Agent Runtime、通用 IDE abstraction、自定义 Plugin/Skill/Hook/MCP 格式、arbitrary 或 generic resource copying/injection（唯一窄例外是上文 frozen 的 Marketplace-managed `user-instructions/**/*.instructions.md` contract）、通用 overlay engine、telemetry、dashboard、TeamWiki/Recall/Learning，也不创建自定义 Product/Project database。
+本项目不实现默认 Marketplace、多 Marketplace merge/overlay/precedence、Package Manager、另一套 Agent Runtime、通用 IDE abstraction、自定义 Plugin/Skill/Hook/MCP 格式、arbitrary 或 generic resource copying/injection（唯一窄例外是上文 frozen 的 Marketplace-managed `instructions/**/*.instructions.md` contract）、通用 overlay engine、telemetry、dashboard、TeamWiki/Recall/Learning，也不创建自定义 Product/Project database。
 
 ## 项目文档
 

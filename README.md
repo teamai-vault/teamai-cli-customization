@@ -83,15 +83,15 @@ The plugin name does not encode its kind. The CLI reads the shared metadata name
 
 ## Marketplace-managed user instructions
 
-An optional Marketplace `user-instructions/` directory may contain native Copilot instruction files at any depth:
+An optional Marketplace `instructions/` directory may contain native Copilot instruction files at any depth:
 
 ```text
-user-instructions/**/*.instructions.md
+instructions/**/*.instructions.md
 ```
 
 `team-ai init` and `team-ai sync` mirror those files byte-for-byte into the managed user-level directory `~/.copilot/instructions/team-ai/`, preserving relative paths. The directory is Team AI-owned; keep personal instructions elsewhere under `~/.copilot/instructions/`. File and folder names only organize content—Team AI does not assign company, department, role, or action semantics, and native Copilot frontmatter remains unchanged.
 
-This is the only narrow exception to the prohibition on arbitrary or generic resource copying/injection: the concrete use case is deploying department-approved Copilot user instructions. Marketplace maintainers own and review the content; Team AI owns only `~/.copilot/instructions/team-ai/` and mirrors the frozen `user-instructions/**/*.instructions.md` contract there. The CLI accepts regular single-link-count files and rejects link-like entries or unsafe source/target boundaries visible during its filesystem checks, writes atomically, and leaves all other user instructions untouched. It does not defend against a separate process replacing an already-checked path during the operation; that race is outside the V1 threat model.
+This is the only narrow exception to the prohibition on arbitrary or generic resource copying/injection: the concrete use case is deploying department-approved Copilot user instructions. Marketplace maintainers own and review the content; Team AI owns only `~/.copilot/instructions/team-ai/` and mirrors the frozen `instructions/**/*.instructions.md` contract there. The CLI accepts regular single-link-count files and rejects link-like entries or unsafe source/target boundaries visible during its filesystem checks, writes atomically, and leaves all other user instructions untouched. It does not defend against a separate process replacing an already-checked path during the operation; that race is outside the V1 threat model.
 
 If both Copilot CLI and VS Code are unavailable, `init`/`sync` still converge this file tree but return an error explaining that plugin convergence could not run; the command must not report full initialization or synchronization success.
 
@@ -247,7 +247,7 @@ The two E2E scripts create isolated temporary profiles and repositories. `test:e
 
 ## Non-goals
 
-This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, arbitrary or generic resource copying/injection (the only narrow exception is the frozen Marketplace-managed `user-instructions/**/*.instructions.md` contract described above), a generic overlay engine, telemetry, dashboards, TeamWiki/Recall/Learning, or a custom Product/Project database.
+This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, arbitrary or generic resource copying/injection (the only narrow exception is the frozen Marketplace-managed `instructions/**/*.instructions.md` contract described above), a generic overlay engine, telemetry, dashboards, TeamWiki/Recall/Learning, or a custom Product/Project database.
 
 ## Project documents
 

@@ -48,7 +48,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-no-backend-home-");
     const marketplace = await tempDir("team-ai-instructions-no-backend-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "managed without backend\n", "utf8");
     const output = capture();
@@ -433,7 +433,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-init-home-");
     const marketplace = await tempDir("team-ai-instructions-init-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(path.join(source, "git"), { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), Buffer.from("global\r\n\0", "utf8"));
     await writeFile(path.join(source, "git", "commit.instructions.md"), "commit rules\n", "utf8");
@@ -474,7 +474,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-sync-home-");
     const marketplace = await tempDir("team-ai-instructions-sync-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "v1\n", "utf8");
     const fake = await createFakeCopilot();
@@ -517,7 +517,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-doctor-home-");
     const marketplace = await tempDir("team-ai-instructions-doctor-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "global\n", "utf8");
     const fake = await createFakeCopilot();
@@ -543,7 +543,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-empty-status-home-");
     const marketplace = await tempDir("team-ai-instructions-empty-status-marketplace-");
-    await mkdir(path.join(marketplace, "user-instructions"), { recursive: true });
+    await mkdir(path.join(marketplace, "instructions"), { recursive: true });
     await mkdir(path.join(home, ".copilot", "instructions", "team-ai"), { recursive: true });
     await writeGlobalConfig(createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }), home);
     const fake = await createFakeCopilot({
@@ -566,7 +566,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-unwritable-doctor-home-");
     const marketplace = await tempDir("team-ai-instructions-unwritable-doctor-marketplace-");
-    const source = path.join(marketplace, "user-instructions", "blocked");
+    const source = path.join(marketplace, "instructions", "blocked");
     const targetRoot = path.join(home, ".copilot", "instructions", "team-ai");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "new.instructions.md"), "managed\n", "utf8");
@@ -597,7 +597,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-occupied-path-home-");
     const marketplace = await tempDir("team-ai-instructions-occupied-path-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     const targetRoot = path.join(home, ".copilot", "instructions", "team-ai");
     const occupiedPath = path.join(targetRoot, "global.instructions.md");
     await mkdir(source, { recursive: true });
@@ -632,7 +632,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-sync-no-backend-home-");
     const marketplace = await tempDir("team-ai-sync-no-backend-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "sync without backend\n", "utf8");
     const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
@@ -660,7 +660,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const home = await tempDir("team-ai-instructions-unsafe-boundary-home-");
     const marketplace = await tempDir("team-ai-instructions-unsafe-boundary-marketplace-");
     const external = await tempDir("team-ai-instructions-unsafe-boundary-external-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     const externalCopilot = path.join(external, ".copilot");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "managed\n", "utf8");
@@ -696,7 +696,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-unsafe-source-home-");
     const marketplace = await tempDir("team-ai-instructions-unsafe-source-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "managed\n", "utf8");
     const fake = await createFakeCopilot({
@@ -734,7 +734,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-instructions-failure-home-");
     const marketplace = await tempDir("team-ai-instructions-failure-marketplace-");
-    const source = path.join(marketplace, "user-instructions");
+    const source = path.join(marketplace, "instructions");
     await mkdir(source, { recursive: true });
     await writeFile(path.join(source, "global.instructions.md"), "keep me\n", "utf8");
     const fake = await createFakeCopilot();

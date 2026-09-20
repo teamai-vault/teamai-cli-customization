@@ -148,7 +148,7 @@ The fallback also uses `extraKnownMarketplaces` in `~/.copilot/settings.json` an
 
 ## 7. Marketplace-managed user instructions
 
-The concrete use case is deploying department-approved Copilot user instructions from the configured Marketplace. Marketplace maintainers own and review the content. The only supported source contract is the frozen `user-instructions/**/*.instructions.md` tree, mirrored byte-for-byte into the Team AI-owned subtree `~/.copilot/instructions/team-ai/`; all other user instruction locations remain user-owned.
+The concrete use case is deploying department-approved Copilot user instructions from the configured Marketplace. Marketplace maintainers own and review the content. The only supported source contract is the frozen `instructions/**/*.instructions.md` tree, mirrored byte-for-byte into the Team AI-owned subtree `~/.copilot/instructions/team-ai/`; all other user instruction locations remain user-owned.
 
 This is the sole narrow exception to the prohibition on arbitrary or generic resource copying/injection. The CLI accepts only regular files with a single link count, rejects link-like entries and unsafe source/target roots or ancestors when those boundaries are visible during its filesystem checks, uses atomic writes, and leaves personal instruction files untouched. It does not defend against a separate process replacing an already-checked path during the operation; that race is outside the V1 threat model. No generic copier or provider framework is part of the implementation.
 
@@ -187,7 +187,7 @@ Machine state is partitioned by the stable Git project anchor:
 
 Only explicitly Team AI-managed plugins may be installed, enabled, disabled, updated, or repaired by Team AI. User-owned and third-party plugin state is preserved.
 
-YAGNI remains a design constraint. Deferred work includes multiple-Marketplace selection/merge/overlay/precedence, package management, generic IDE/provider abstraction, custom capability formats, arbitrary or generic resource injection/copying (the only narrow exception is the frozen Marketplace-managed `user-instructions/**/*.instructions.md` contract described above), telemetry, dashboards, knowledge retrieval, TeamWiki/Recall/Learning, and a custom Product/Project database.
+YAGNI remains a design constraint. Deferred work includes multiple-Marketplace selection/merge/overlay/precedence, package management, generic IDE/provider abstraction, custom capability formats, arbitrary or generic resource injection/copying (the only narrow exception is the frozen Marketplace-managed `instructions/**/*.instructions.md` contract described above), telemetry, dashboards, knowledge retrieval, TeamWiki/Recall/Learning, and a custom Product/Project database.
 
 ## 10. Validation status for this branch
 
