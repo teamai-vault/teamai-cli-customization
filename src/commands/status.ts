@@ -1,6 +1,7 @@
 import { readGlobalConfig } from "../config/global.js";
 import { pluginSpec } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { checkUserInstructionState, discoverMarketplaceUserInstructions, userInstructionTargetRoot } from "../copilot/user-instructions.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { partitionPath } from "../project/partition.js";
 import { readProjectState } from "../project/state.js";
@@ -14,6 +15,7 @@ export async function statusCommand(context: CommandContext): Promise<void> {
   context.out("Global");
   if (!config) {
     context.out("  Config: not initialized");
+    context.out("  User instructions: not initialized");
   } else {
     context.out(`  Marketplace: ${config.marketplace.name} (${config.marketplace.source})`);
     context.out(`  Role: ${config.role ?? "not set"}`);
@@ -29,6 +31,18 @@ export async function statusCommand(context: CommandContext): Promise<void> {
       }
     } catch (error) {
       context.out(`  Copilot: unavailable (${(error as Error).message})`);
+    }
+    try {
+      const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
+      try {
+        const desired = await discoverMarketplaceUserInstructions(catalog.root);
+        const state = await checkUserInstructionState(desired, userInstructionTargetRoot(context.homeDir));
+        context.out(`  User instructions: ${state.current ? `${state.desiredCount} managed, current` : "stale"}`);
+      } finally {
+        await catalog.dispose();
+      }
+    } catch (error) {
+      context.out(`  User instructions: unavailable (${(error as Error).message})`);
     }
   }
 

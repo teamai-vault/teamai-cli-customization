@@ -1,11 +1,12 @@
 import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
 import { convergeUserPlugins } from "../copilot/plugins.js";
 import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { convergeMarketplaceUserInstructions } from "../copilot/user-instructions.js";
 import { registerVsCodeMarketplace } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
 import { writeProjectState } from "../project/state.js";
 import type { CommandContext } from "./context.js";
-import { printActions, printWarnings } from "./helpers.js";
+import { printActions, printUserInstructionActions, printWarnings } from "./helpers.js";
 
 export async function syncCommand(context: CommandContext): Promise<void> {
   const config = await readGlobalConfig(context.homeDir);
@@ -17,13 +18,20 @@ export async function syncCommand(context: CommandContext): Promise<void> {
     throw new Error(`Configured Marketplace name '${config.marketplace.name}' does not match source manifest '${catalog.name}'.`);
   }
   let converged;
+  let userInstructions;
   try {
+    userInstructions = await convergeMarketplaceUserInstructions(catalog.root, context.homeDir, { dryRun: context.dryRun });
+    if (context.copilotMode === "unavailable") {
+      printUserInstructionActions(userInstructions, context.dryRun, context.out);
+      throw new Error("Copilot CLI and VS Code backends are unavailable; Marketplace user instructions were synchronized, but plugin convergence could not run.");
+    }
     converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, { dryRun: context.dryRun, cwd: context.cwd });
   } finally {
     await catalog.dispose();
   }
   printActions(converged.actions, context.dryRun, context.out);
   printWarnings(converged.warnings, context.out);
+  printUserInstructionActions(userInstructions, context.dryRun, context.out);
   if (await registerVsCodeMarketplace(context.vscodeSettingsPath, config.marketplace.source, context.dryRun)) {
     context.out(`${context.dryRun ? "WOULD" : "DONE"} write: VS Code User Settings chat.plugins.marketplaces`);
   }

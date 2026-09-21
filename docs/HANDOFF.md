@@ -1,9 +1,9 @@
 # Team AI CLI — Handoff
 
-> Updated: 2026-09-15
-> Branch: `feat/frozen-design-delta`
+> Updated: 2026-09-16
+> Branch: `feat/managed-user-instructions`
 > Repositories: `teamai-vault/teamai-cli-customization`, `teamai-vault/teamai-marketplace`
-> Status: frozen design delta implemented; documentation aligned with the checked-in code
+> Status: frozen design delta plus Marketplace-managed user instructions implemented; documentation aligned with the checked-in code
 
 ## 1. Frozen contract
 
@@ -28,7 +28,7 @@ Copilot CLI is the preferred backend. If Copilot CLI is unavailable but VS Code 
 .github/plugin/marketplace.json
 ```
 
-The current catalog version is `0.2.0`; the current CLI package version is `0.1.1`.
+The current catalog version is `0.3.0`; the current CLI package version is `0.2.0`.
 
 The reference catalog contains:
 
@@ -146,7 +146,13 @@ Fallback behavior is intentionally small and native-shaped:
 
 The fallback also uses `extraKnownMarketplaces` in `~/.copilot/settings.json` and preserves existing Marketplace entry fields while replacing only the configured source mapping.
 
-## 7. VS Code and repository settings
+## 7. Marketplace-managed user instructions
+
+The concrete use case is deploying department-approved Copilot user instructions from the configured Marketplace. Marketplace maintainers own and review the content. The only supported source contract is the frozen `instructions/**/*.instructions.md` tree, mirrored byte-for-byte into the Team AI-owned subtree `~/.copilot/instructions/team-ai/`; all other user instruction locations remain user-owned.
+
+This is the sole narrow exception to the prohibition on arbitrary or generic resource copying/injection. The CLI accepts only regular files with a single link count, rejects link-like entries and unsafe source/target roots or ancestors when those boundaries are visible during its filesystem checks, uses atomic writes, and leaves personal instruction files untouched. It does not defend against a separate process replacing an already-checked path during the operation; that race is outside the V1 threat model. No generic copier or provider framework is part of the implementation.
+
+## 8. VS Code and repository settings
 
 In addition to Copilot user registration, Team AI updates VS Code User Settings:
 
@@ -164,7 +170,7 @@ Product declarations stay in the real business repository:
 
 The CLI read-modify-writes only its relevant `extraKnownMarketplaces` and `enabledPlugins` entries, validates a Product plugin before writing, and preserves unrelated fields, Marketplaces, and plugins.
 
-## 8. Project, ownership, and YAGNI boundaries
+## 9. Project, ownership, and YAGNI boundaries
 
 Project means the real Git repository. Project-specific Skills, Agents, Instructions, Hooks, and other Copilot customization remain under that repository's `.github/*`; Project is not a Plugin kind.
 
@@ -181,11 +187,11 @@ Machine state is partitioned by the stable Git project anchor:
 
 Only explicitly Team AI-managed plugins may be installed, enabled, disabled, updated, or repaired by Team AI. User-owned and third-party plugin state is preserved.
 
-YAGNI remains a design constraint. Deferred work includes multiple-Marketplace selection/merge/overlay/precedence, package management, generic IDE/provider abstraction, custom capability formats, resource injection/copying, telemetry, dashboards, knowledge retrieval, TeamWiki/Recall/Learning, and a custom Product/Project database.
+YAGNI remains a design constraint. Deferred work includes multiple-Marketplace selection/merge/overlay/precedence, package management, generic IDE/provider abstraction, custom capability formats, arbitrary or generic resource injection/copying (the only narrow exception is the frozen Marketplace-managed `instructions/**/*.instructions.md` contract described above), telemetry, dashboards, knowledge retrieval, TeamWiki/Recall/Learning, and a custom Product/Project database.
 
-## 9. Validation status for this branch
+## 10. Validation status for this branch
 
-The following checks passed on `feat/frozen-design-delta`:
+The following checks passed on `feat/managed-user-instructions`:
 
 ```text
 npm run typecheck        PASS
@@ -194,6 +200,7 @@ npm run test:integration PASS
 npm run build            PASS
 npm run test:e2e:copilot PASS — real native Copilot E2E on Windows
 npm run test:e2e:fallback PASS — real VS Code-only fallback E2E on Windows
+npm test                PASS — default Vitest parallel-file gate
 ```
 
 The native E2E builds the CLI, uses the real installed Copilot CLI with an isolated temporary profile and Git repository, installs all Common/Role plugins, verifies Common plus one Role enabled, checks Product repository settings, and verifies VS Code Marketplace registration.
@@ -202,7 +209,7 @@ The fallback E2E removes Copilot CLI from the test PATH, uses a real VS Code-com
 
 No macOS native or fallback E2E result is claimed for this branch.
 
-## 10. Safe continuation rules
+## 11. Safe continuation rules
 
 1. Preserve the native Copilot and Git-native boundaries.
 2. Keep `version: 1` with `marketplace.source` as the config contract.

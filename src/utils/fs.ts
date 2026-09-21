@@ -28,20 +28,29 @@ export async function readJsonIfExists<T>(filePath: string): Promise<T | undefin
 }
 
 export async function atomicWriteText(filePath: string, contents: string): Promise<void> {
+  await atomicWriteFile(filePath, Buffer.from(contents, "utf8"));
+}
+
+export async function atomicWriteFile(filePath: string, contents: Uint8Array): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   const tempPath = path.join(
     path.dirname(filePath),
     `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`,
   );
-  await open(tempPath, "wx").then(async (handle) => {
-    try {
-      await handle.writeFile(contents, "utf8");
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-  });
-  await rename(tempPath, filePath);
+  try {
+    await open(tempPath, "wx").then(async (handle) => {
+      try {
+        await handle.writeFile(contents);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+    });
+    await rename(tempPath, filePath);
+  } catch (error) {
+    await rm(tempPath, { force: true });
+    throw error;
+  }
 }
 
 export async function atomicWriteJson(filePath: string, value: unknown): Promise<void> {

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,14 @@ import { runProcess } from "../../src/utils/process.js";
 
 export const TEST_MARKETPLACE_NAME = "test-team-ai";
 export const TEST_MARKETPLACE_SOURCE = "https://github.com/test-org/teamai-marketplace.git";
+
+export function isPermissionError(error: unknown): boolean {
+  return ["EACCES", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "");
+}
+
+export async function createDirectoryLink(target: string, linkPath: string): Promise<void> {
+  await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
+}
 
 export interface FakeCopilotState {
   marketplaceName: string;
@@ -55,9 +63,10 @@ export async function createFakeCopilot(initial?: Partial<FakeCopilotState>): Pr
   };
 }
 
-export async function loadFakeMarketplace(): Promise<MarketplaceCatalog> {
+export async function loadFakeMarketplace(root = path.join(os.tmpdir(), "team-ai-fake-marketplace-without-instructions")): Promise<MarketplaceCatalog> {
   return {
     name: TEST_MARKETPLACE_NAME,
+    root,
     plugins: [
       { name: "common", version: "0.1.0", kind: "common", root: "common" },
       { name: "api", version: "0.1.0", kind: "role", root: "api" },

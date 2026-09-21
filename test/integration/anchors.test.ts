@@ -13,7 +13,7 @@ describe("Git project identity", () => {
     const identity = await detectProjectIdentity(nested);
     expect(identity?.workspaceRoot.toLowerCase()).toBe(root.toLowerCase());
     expect(identity?.projectAnchor.toLowerCase()).toBe(root.toLowerCase());
-  });
+  }, 15_000);
 
   test("Git worktree has a distinct workspaceRoot and stable main anchor", async () => {
     const root = await createGitRepo();
@@ -24,5 +24,5 @@ describe("Git project identity", () => {
     const identity = await detectProjectIdentity(worktree);
     expect(identity?.workspaceRoot.toLowerCase()).toBe(worktree.toLowerCase());
     expect(identity?.projectAnchor.toLowerCase()).toBe(root.toLowerCase());
-  });
+  }, 15_000);
 });

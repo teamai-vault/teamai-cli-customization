@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { PlannedAction } from "../copilot/plugins.js";
+import { userInstructionDisplayPath, type UserInstructionPlan } from "../copilot/user-instructions.js";
 
 export function printActions(actions: PlannedAction[], dryRun: boolean, out: (message: string) => void): void {
   if (actions.length === 0) {
@@ -15,6 +16,16 @@ export function printActions(actions: PlannedAction[], dryRun: boolean, out: (me
 
 export function printWarnings(warnings: string[], out: (message: string) => void): void {
   for (const warning of warnings) out(`! ${warning}`);
+}
+
+export function printUserInstructionActions(plan: UserInstructionPlan, dryRun: boolean, out: (message: string) => void): void {
+  if (plan.changes.length === 0) {
+    out(`Managed user instructions are already converged (${plan.desired.length}).`);
+    return;
+  }
+  for (const change of plan.changes) {
+    out(`${dryRun ? "WOULD" : "DONE"} ${change.type}: ${userInstructionDisplayPath(change.relativePath)}`);
+  }
 }
 
 async function countEntries(directory: string, predicate: (name: string) => boolean = () => true): Promise<number> {

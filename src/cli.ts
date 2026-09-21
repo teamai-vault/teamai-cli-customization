@@ -8,7 +8,7 @@ import { roleListCommand, roleSetCommand } from "./commands/role.js";
 import { statusCommand } from "./commands/status.js";
 import { syncCommand } from "./commands/sync.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.2.0";
 
 function usage(): string {
   return [
