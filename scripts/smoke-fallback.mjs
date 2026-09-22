@@ -2,7 +2,8 @@
 
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import spawn from "cross-spawn";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -27,25 +28,53 @@ async function runCopilot(args, options) {
     : await run("copilot", args, options);
 }
 
+async function resolveRealCode(env) {
+  const candidates = process.env.TEAM_AI_E2E_CODE_BIN
+    ? [process.env.TEAM_AI_E2E_CODE_BIN]
+    : (await run(process.platform === "win32" ? "where.exe" : "which", ["code"])).stdout.trim().split(/\r?\n/).filter(Boolean);
+  for (const candidate of candidates) {
+    try {
+      const version = await runExecutable(candidate, ["--version"], env);
+      if (version.stdout.trim()) return candidate;
+    } catch {
+      // Try the next PATH candidate. A stale shim is not a usable VS Code CLI.
+    }
+  }
+  throw new Error("Fallback E2E requires TEAM_AI_E2E_CODE_BIN or a working code command on PATH.");
+}
+
+async function runExecutable(command, args, env) {
+  return await new Promise((resolve, reject) => {
+    const child = spawn(command, args, { env, windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk) => { stdout += chunk; });
+    child.stderr?.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(`${command} ${args.join(" ")} failed: ${stderr.trim() || stdout.trim()}`));
+    });
+  });
+}
+
 try {
   runRoot = await mkdtemp(path.join(os.tmpdir(), "team-ai-fallback-e2e-"));
   const profile = path.join(runRoot, "profile");
   const repository = path.join(runRoot, "repository");
-  const fakeBin = path.join(runRoot, "bin");
   const appData = path.join(profile, "AppData", "Roaming");
-  await Promise.all([repository, fakeBin, appData].map((directory) => mkdir(directory, { recursive: true })));
-
-  const codePath = path.join(fakeBin, process.platform === "win32" ? "code.cmd" : "code");
-  await writeFile(codePath, process.platform === "win32" ? "@echo fake-code\r\n" : "#!/bin/sh\necho fake-code\n", "utf8");
-  if (process.platform !== "win32") await chmod(codePath, 0o755);
+  const localAppData = path.join(profile, "AppData", "Local");
+  await Promise.all([repository, appData, localAppData].map((directory) => mkdir(directory, { recursive: true })));
   const gitPath = (await run(process.platform === "win32" ? "where.exe" : "which", ["git"])).stdout.trim().split(/\r?\n/, 1)[0];
-  const fallbackEnv = {
+  const isolatedEnv = {
     ...process.env,
     HOME: profile,
     USERPROFILE: profile,
     APPDATA: appData,
-    PATH: `${fakeBin}${path.delimiter}${path.dirname(gitPath)}`,
+    LOCALAPPDATA: localAppData,
   };
+  const codePath = await resolveRealCode(isolatedEnv);
+  const fallbackEnv = { ...isolatedEnv, PATH: `${path.dirname(codePath)}${path.delimiter}${path.dirname(gitPath)}` };
   delete fallbackEnv.COPILOT_HOME;
 
   await run("git", ["init", "-b", "main"], { cwd: repository, env: { ...fallbackEnv, PATH: process.env.PATH } });

@@ -29,6 +29,24 @@ async function runCopilot(args) {
     : await run("copilot", args);
 }
 
+function normalizedPath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+function assertSkillPath(skills, name, expected, source, label) {
+  assert.ok(Array.isArray(skills), "Native skill listing must be an array.");
+  assert.ok(skills.some((skill) => skill.name === name && skill.source === source && skill.enabled === true && typeof skill.path === "string" && normalizedPath(skill.path) === normalizedPath(expected)), `${label} was not discovered at ${expected}`);
+}
+
+function enabledPluginSkill(skills, name, expectedPath) {
+  assert.ok(Array.isArray(skills), "Native skill listing must be an array.");
+  const skill = skills.find((item) => item.name === name && item.source === "plugin" && item.enabled === true && typeof item.path === "string");
+  assert.ok(skill, `Enabled Plugin Skill '${name}' was not discovered.`);
+  assert.equal(normalizedPath(skill.path), normalizedPath(expectedPath), `Enabled Plugin Skill '${name}' did not use the installed Marketplace source.`);
+  return skill;
+}
+
 try {
   runRoot = await mkdtemp(path.join(os.tmpdir(), "team-ai-real-e2e-"));
   const profile = path.join(runRoot, "profile");
@@ -59,16 +77,19 @@ try {
   await run("git", ["commit", "-m", "initial"]);
 
   const cli = path.join(cliRoot, "dist", "cli.js");
-  await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api", "--product", "teamai"]);
+  await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api", "--project", "teamai"]);
+  await run(process.execPath, [cli, "skill", "install", "release-helper"]);
   await run(process.execPath, [cli, "role", "set", "qa"]);
   await run(process.execPath, [cli, "sync"]);
   await run(process.execPath, [cli, "--dry-run", "sync"]);
   await run(process.execPath, [cli, "status"]);
   await run(process.execPath, [cli, "doctor"]);
 
-  const settings = JSON.parse(await readFile(path.join(repository, ".github", "copilot", "settings.json"), "utf8"));
-  assert.equal(settings.enabledPlugins["product-teamai@teamai"], true);
-  assert.equal(settings.extraKnownMarketplaces.teamai.source.source, "directory");
+  const projectedInstruction = path.join(repository, ".github", "instructions", "team-ai", "teamai", "context.instructions.md");
+  const sourceInstruction = path.join(marketplaceRoot, "contexts", "teamai", "instructions", "context.instructions.md");
+  assert.deepEqual(await readFile(projectedInstruction), await readFile(sourceInstruction));
+  await assert.doesNotReject(readFile(path.join(repository, ".team-ai", "context", "teamai", "docs", "architecture.md"), "utf8"));
+  await assert.doesNotReject(readFile(path.join(repository, ".team-ai", "context", "shared", "learnings", "validation.md"), "utf8"));
 
   const installed = JSON.parse((await runCopilot(["plugins", "list", "--kind", "plugin", "--json"])).stdout).plugins;
   for (const name of ["common", "api", "ios", "aos", "qa", "design"]) {
@@ -79,6 +100,21 @@ try {
   for (const name of ["api", "ios", "aos", "design"]) {
     assert.equal(installed.find((item) => item.name === name).enabled, false);
   }
+
+  const instructions = JSON.parse((await runCopilot(["plugins", "list", "--kind", "instruction", "--json"])).stdout);
+  const contextInstructions = instructions.plugins.filter((item) => item.name === "context.instructions.md" && item.scope === "working-directory" && item.source === "working-directory");
+  assert.equal(contextInstructions.length, 2, "Native Copilot should list both working-directory context instructions.");
+
+  const skills = JSON.parse((await runCopilot(["skill", "list", "--json"])).stdout);
+  assertSkillPath(skills, "release-helper", path.join(copilotHome, "skills", "release-helper"), "personal-copilot", "Managed personal Skill");
+  const pluginSkillPath = path.join(marketplaceRoot, "plugins", "common", "skills", "code-review");
+  const pluginSkill = enabledPluginSkill(skills, "code-review", pluginSkillPath);
+  assert.deepEqual(await readFile(path.join(pluginSkill.path, "SKILL.md")), await readFile(path.join(pluginSkillPath, "SKILL.md")));
+  await run(process.execPath, [cli, "skill", "remove", "release-helper"]);
+  const afterRemoval = JSON.parse((await runCopilot(["skill", "list", "--json"])).stdout);
+  assert.ok(!afterRemoval.some((skill) => skill.name === "release-helper" && typeof skill.path === "string" && normalizedPath(skill.path) === normalizedPath(path.join(copilotHome, "skills", "release-helper"))), "Removed personal Skill remains discoverable");
+  const pluginSkillAfterRemoval = enabledPluginSkill(afterRemoval, "code-review", pluginSkillPath);
+  assert.equal(normalizedPath(pluginSkillAfterRemoval.path), normalizedPath(pluginSkill.path), "Enabled Plugin Skill path changed after personal Skill removal.");
 
   const vscodeSettings = JSON.parse(await readFile(path.join(appData, "Code", "User", "settings.json"), "utf8"));
   assert.equal(vscodeSettings["chat.plugins.marketplaces"][0], marketplaceRoot);

@@ -5,6 +5,8 @@ CLI implementation commit: `fc5a95c79385bb494ba102816d175bc65793b412`
 CLI test-stability commit: `f19fc880ba6de14259eb5fdc85d1939130979bd7`
 Marketplace implementation commit: `84e6241b34c775e107d67c33179105cdc7f3fef9`
 
+> **Historical evidence.** This record preserves commands and results from the retired Product interface, including `--product` below. It is not a current command reference and must not be used for new validation. V3 uses Logical Projects; see [`HANDOFF.md`](HANDOFF.md) and [`../scripts/README.md`](../scripts/README.md) for current checks.
+
 ## Anchor test timeout diagnosis
 
 The reported failure was both tests in `test/integration/anchors.test.ts` exceeding Vitest's default 5-second per-test timeout while repository gates were running concurrently. Each test creates a Git repository and starts seven or eight Git subprocesses before asserting project identity.

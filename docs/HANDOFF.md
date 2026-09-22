@@ -1,222 +1,40 @@
-# Team AI CLI — Handoff
+# Team AI CLI — V3 handoff
 
-> Updated: 2026-09-16
-> Branch: `feat/managed-user-instructions`
-> Repositories: `teamai-vault/teamai-cli-customization`, `teamai-vault/teamai-marketplace`
-> Status: frozen design delta plus Marketplace-managed user instructions implemented; documentation aligned with the checked-in code
+The authoritative V3 architecture and ordered work ledger are [`v3/team-ai-next-architecture-final-v3.md`](v3/team-ai-next-architecture-final-v3.md), [`v3/team-ai-next-implementation-plan-v3.md`](v3/team-ai-next-implementation-plan-v3.md), and [`v3/EXECUTION.md`](v3/EXECUTION.md).
 
-## 1. Frozen contract
+The CLI keeps native Copilot Marketplace and Agent Plugin behavior. User scope installs `common` and all `role` plugins, enables `common` plus one selected role, and records ownership in `config.managedPlugins`.
 
-The project keeps one company-wide CLI and one configured department Marketplace per user. The Marketplace is supplied as a source; its manifest name is discovered and persisted. The CLI remains an orchestrator around native Agent Plugin and Copilot behavior.
+Logical Project is the only business-context entity. A Marketplace may publish `manifest/projects.yaml`; a Physical Project is a real Git workspace. `team-ai init --project <id>` and `team-ai projects set <ids...>` bind contexts to that workspace. An optional `kind: project` Plugin is enabled through repository settings only when the manifest requests it and Team AI explicitly owns that setting.
 
-The scope model is unchanged:
+Project context convergence is shared by `init`, `projects set`, and `sync`. It mirrors active project instructions to `.github/instructions/team-ai/<id>/`, docs and shared/project learnings to `.team-ai/context/`, writes a thin pointer instruction, preserves source bytes and `applyTo`, rejects unowned reserved paths, and excludes only those paths through Git-resolved `info/exclude`.
 
-```text
-Common  -> User Plugin
-Role    -> User Plugin
-Product -> Repo-enabled Plugin
-Project -> real business Git repository .github/*
-```
+Current implementation:
 
-Copilot CLI is the preferred backend. If Copilot CLI is unavailable but VS Code is available, the CLI uses its compatible filesystem/metadata fallback. No custom runtime, IDE abstraction, overlay engine, Marketplace merge layer, knowledge runtime, or telemetry subsystem was added.
+- `sync` is the one concrete convergence path for Marketplace registration, User Plugins/instructions, Logical Project context, optional Project Plugin settings, shared/project learnings, and managed personal Skills.
+- `status` reports compact Logical Projects, personal Skills, Project context/learning projection, and Marketplace revision. `doctor` performs read-only cache and dry-run convergence diagnostics; it never refreshes cache or repairs state.
+- Skills use strict `skills.yaml` catalog metadata. `learning share` and `skill contribute` use an isolated GitHub worktree/PR flow; tag installation requires `--yes` only when non-interactive selection is needed.
 
-## 2. Current repositories and catalog
-
-`teamai-marketplace` is the reference/template Marketplace. Its canonical manifest is:
+Final validation (Windows, Copilot CLI 1.0.83):
 
 ```text
-.github/plugin/marketplace.json
+CLI typecheck                         PASS
+CLI sequential full test gate         84 passed, 1 skipped (19 files, 161.59s)
+  unit                                46 passed, 1 skipped
+  integration                         38 passed
+CLI build                             PASS
+Marketplace validate                  PASS
+Marketplace tests                     20 passed
+CLI real native Copilot E2E            PASS
+CLI real fallback E2E                  PASS
+Marketplace real Copilot smoke         PASS
 ```
 
-The current catalog version is `0.3.0`; the current CLI package version is `0.2.0`.
+Phases 1–16 (including 2.5) are implemented and accepted within the verification limits below. Phase17 Learning promotion and Phase18 LLM Wiki remain deferred by V3. All maintained instruction examples use `applyTo: "**"`; general path/glob support is a recorded later TODO.
 
-The reference catalog contains:
+Native E2E verifies projection and discovery, personal Skill install/remove, and Plugin Skill preservation. Local Marketplace Plugin Skills point to their source directories; direct-install Plugin probes used installed copies. Fallback uses the real VS Code CLI at `D:/soft/Microsoft VS Code/bin/code.cmd`, materializes native filesystem state, and verifies real Copilot recognition. This does not verify VS Code extension discovery.
 
-```text
-common
-api
-ios
-aos
-qa
-design
-product-teamai
-```
+Not verified: authenticated model reading of ignored docs (existing classic PAT rejected by Copilot), actual `applyTo` injection, runtime Plugin Rule execution, macOS, or external GitHub contribution PR creation. Contribution integration uses real local Git worktrees/branches/push with mocked `gh`; it is not external E2E. Plugin-target Skill contribution was checked through dry-run/source review, while the standalone target exercised local push.
 
-The first six names are the Common and Role user plugins. `product-teamai` is the current Product example and is enabled from a business repository; Product plugins are not part of the user-scope install set.
+Initial integration timeouts were caused by concurrent subprocess load and short command-chain budgets. Test files now run sequentially with a 60-second command-chain budget; no production deadlock was demonstrated. The one Windows skip covers POSIX permission semantics.
 
-Plugin kind is metadata, not a naming prefix. The CLI and every reference Marketplace `plugin.json` use the stable namespace `com.company.teamai`:
-
-```json
-{
-  "name": "api",
-  "version": "0.1.0",
-  "extensions": {
-    "com.company.teamai": {
-      "kind": "role"
-    }
-  }
-}
-```
-
-The CLI reads `extensions.com.company.teamai.kind` and accepts `common`, `role`, or `product`. If the namespace changes, update both `TEAM_AI_EXTENSION_NAMESPACE` in the CLI and the namespace in every Marketplace `plugin.json`.
-
-## 3. Config contract
-
-The machine config is:
-
-```text
-~/.team-ai/config.yaml
-```
-
-Its only supported schema is version `1` with `marketplace.source`:
-
-```yaml
-version: 1
-marketplace:
-  name: payments-ai
-  source: https://github.com/example-org/payments-ai-marketplace.git
-role: api
-managedPlugins:
-  - common@payments-ai
-  - api@payments-ai
-  - ios@payments-ai
-  - aos@payments-ai
-  - qa@payments-ai
-  - design@payments-ai
-```
-
-A configured Marketplace source is not silently replaced by a different source. Relative local sources are normalized to absolute paths before persistence.
-
-`managedPlugins` is the explicit Team AI ownership record. It is updated only from convergence results; names alone never establish ownership.
-
-## 4. Initialization and role behavior
-
-First-time `init` supports all four combinations:
-
-```text
-team-ai init                                             # prompt for Marketplace and Role
-team-ai init --marketplace <source>                      # prompt for Role
-team-ai init --role api                                  # prompt for Marketplace
-team-ai init --marketplace <source> --role api           # no prompts
-```
-
-Interactive role selection is limited to the `kind: role` plugins exposed by the selected Marketplace and chooses exactly one. In non-TTY environments, missing Marketplace or Role values are errors; the CLI never enters a prompt. Automation supplies both values:
-
-```text
-team-ai init --marketplace <source> --role <role>
-```
-
-Convergence installs `common` and every role-kind plugin in the catalog, then enables only `common` and the selected Role. A role change keeps the installed role set, enables the new Role, and disables other Team AI-owned Roles. Product plugins are validated and declared through repository settings only when requested.
-
-## 5. Native backend
-
-When `copilot` is available, the CLI uses the native plural command family:
-
-```text
-copilot plugins marketplace add <source>
-copilot plugins marketplace list --json
-copilot plugins marketplace browse <name> --json
-copilot plugins list --kind plugin --json
-copilot plugins install <plugin>@<marketplace>
-copilot plugins enable <plugin>@<marketplace>
-copilot plugins disable <plugin>@<marketplace>
-copilot plugins update <plugin>@<marketplace>
-```
-
-Team AI does not recreate native Copilot installation or execution behavior. `status` and `doctor` inspect native MCP metadata where the Copilot CLI exposes it. Hook declarations are validated as Marketplace content; unavailable live Hook inspection is reported and no Hook is executed as a probe.
-
-## 6. VS Code-only fallback
-
-When `copilot` is unavailable and `code` is available, Team AI uses the compatible fallback. It loads the Marketplace manifest and plugin metadata, materializes Common and all Role plugins, and updates Copilot-compatible state:
-
-```text
-~/.copilot/installed-plugins/<marketplace>/<plugin>
-~/.copilot/config.json
-~/.copilot/settings.json
-```
-
-Fallback behavior is intentionally small and native-shaped:
-
-- `config.json.installedPlugins` records the materialized inventory;
-- `settings.json.enabledPlugins` is effective enablement authority;
-- the inventory `enabled` flag is kept in sync with that authority;
-- unknown fields in both files and existing `source_sha` values are preserved;
-- fallback-created rows do not calculate a synthetic `source_sha`;
-- writes are locked, merged, and atomic.
-
-The fallback also uses `extraKnownMarketplaces` in `~/.copilot/settings.json` and preserves existing Marketplace entry fields while replacing only the configured source mapping.
-
-## 7. Marketplace-managed user instructions
-
-The concrete use case is deploying department-approved Copilot user instructions from the configured Marketplace. Marketplace maintainers own and review the content. The only supported source contract is the frozen `instructions/**/*.instructions.md` tree, mirrored byte-for-byte into the Team AI-owned subtree `~/.copilot/instructions/team-ai/`; all other user instruction locations remain user-owned.
-
-This is the sole narrow exception to the prohibition on arbitrary or generic resource copying/injection. The CLI accepts only regular files with a single link count, rejects link-like entries and unsafe source/target roots or ancestors when those boundaries are visible during its filesystem checks, uses atomic writes, and leaves personal instruction files untouched. It does not defend against a separate process replacing an already-checked path during the operation; that race is outside the V1 threat model. No generic copier or provider framework is part of the implementation.
-
-## 8. VS Code and repository settings
-
-In addition to Copilot user registration, Team AI updates VS Code User Settings:
-
-```text
-chat.plugins.marketplaces
-```
-
-The merge is JSONC-safe: comments and trailing commas are accepted, unknown settings remain intact, and the configured source is inserted or moved to array index `0` while preserving other entries.
-
-Product declarations stay in the real business repository:
-
-```text
-.github/copilot/settings.json
-```
-
-The CLI read-modify-writes only its relevant `extraKnownMarketplaces` and `enabledPlugins` entries, validates a Product plugin before writing, and preserves unrelated fields, Marketplaces, and plugins.
-
-## 9. Project, ownership, and YAGNI boundaries
-
-Project means the real Git repository. Project-specific Skills, Agents, Instructions, Hooks, and other Copilot customization remain under that repository's `.github/*`; Project is not a Plugin kind.
-
-Machine state is partitioned by the stable Git project anchor:
-
-```text
-~/.team-ai/
-  config.yaml
-  projects/
-    <safe-anchor>-<hash>/
-      anchor
-      state.json
-```
-
-Only explicitly Team AI-managed plugins may be installed, enabled, disabled, updated, or repaired by Team AI. User-owned and third-party plugin state is preserved.
-
-YAGNI remains a design constraint. Deferred work includes multiple-Marketplace selection/merge/overlay/precedence, package management, generic IDE/provider abstraction, custom capability formats, arbitrary or generic resource injection/copying (the only narrow exception is the frozen Marketplace-managed `instructions/**/*.instructions.md` contract described above), telemetry, dashboards, knowledge retrieval, TeamWiki/Recall/Learning, and a custom Product/Project database.
-
-## 10. Validation status for this branch
-
-The following checks passed on `feat/managed-user-instructions`:
-
-```text
-npm run typecheck        PASS
-npm run test:unit        PASS
-npm run test:integration PASS
-npm run build            PASS
-npm run test:e2e:copilot PASS — real native Copilot E2E on Windows
-npm run test:e2e:fallback PASS — real VS Code-only fallback E2E on Windows
-npm test                PASS — default Vitest parallel-file gate
-```
-
-The native E2E builds the CLI, uses the real installed Copilot CLI with an isolated temporary profile and Git repository, installs all Common/Role plugins, verifies Common plus one Role enabled, checks Product repository settings, and verifies VS Code Marketplace registration.
-
-The fallback E2E removes Copilot CLI from the test PATH, uses a real VS Code-compatible `code` command, materializes the local Marketplace into `~/.copilot/installed-plugins`, checks merged Copilot config/settings and enablement, then verifies that the real Copilot CLI recognizes the materialized plugins. Both scripts clean their temporary state in a `finally` path.
-
-No macOS native or fallback E2E result is claimed for this branch.
-
-## 11. Safe continuation rules
-
-1. Preserve the native Copilot and Git-native boundaries.
-2. Keep `version: 1` with `marketplace.source` as the config contract.
-3. Discover Common, Role, and Product by `extensions.com.company.teamai.kind`, not by name prefixes.
-4. Keep Common plus all Roles installed and Common plus exactly one Role enabled.
-5. Preserve unknown Copilot/VS Code fields and user-owned plugin state.
-6. Keep Product declarations in repository settings and Project customization in `.github/*`.
-7. Do not add a custom Hook/MCP injector or runtime.
-8. Do not claim fake integration as real E2E, and do not infer macOS results from Windows evidence.
-9. Keep new capability families behind a concrete use case, owner, and security review.
+Delivery is on `feat/team-ai-v3-cli` and `feat/team-ai-v3-marketplace`, in `F:/agent-workspace/codex/repos/team-ai-v3/`. User authorized commit/push after initial implementation; main is not modified or merged. See `v3/EXECUTION.md` for failures, corrections, and delivery details.
