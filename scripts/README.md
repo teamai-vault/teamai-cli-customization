@@ -155,7 +155,7 @@ The two E2E commands use isolated temporary state. The native check exercises re
 
 If the old Marketplace ID is already deployed, update Copilot registrations, installed Plugin specs, `~/.team-ai/`, `~/.copilot/`, and `.github/copilot/settings.json` separately. This source-repository utility never changes those external locations.
 
-## Real Copilot Product E2E
+## Real Copilot E2E
 
 After building the CLI, run:
 
@@ -163,7 +163,7 @@ After building the CLI, run:
 npm run test:e2e:copilot
 ```
 
-`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api --product teamai`, switches to `qa`, runs `sync`, `status`, and `doctor`, verifies the native repository settings declaration, checks Common plus one Role enabled and all Roles installed, and removes temporary state in a `finally` block.
+`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api --project teamai`, installs the real standalone `release-helper` Skill, switches to `qa`, runs `sync`, `status`, and `doctor`, then verifies projected Logical Project instruction bytes plus native instruction name/scope/source listing, and exact personal-Skill and enabled Plugin-Skill paths. It removes the personal Skill and confirms the Plugin Skill remains discoverable before deleting temporary state in `finally`.
 
 ## VS Code-only fallback E2E
 
@@ -173,4 +173,4 @@ Run after building the CLI:
 npm run test:e2e:fallback
 ```
 
-`smoke-fallback.mjs` hides Copilot CLI from PATH, supplies a VS Code-compatible `code` command, runs initialization/role/sync/doctor against the local Marketplace, verifies `~/.copilot/installed-plugins`, merged `config.json`/`settings.json`, enablement authority, and preservation of user fields, then invokes the real Copilot CLI to verify that the materialized plugins are recognized.
+`smoke-fallback.mjs` hides Copilot CLI from PATH and requires either `TEAM_AI_E2E_CODE_BIN` or a working `code` discovered on PATH. It verifies `code --version` with the isolated profile before running initialization/role/sync/doctor against the local Marketplace, then verifies `~/.copilot/installed-plugins`, merged `config.json`/`settings.json`, enablement authority, and native recognition of the materialized plugins. It never substitutes a fake `code` shim.

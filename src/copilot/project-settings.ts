@@ -39,35 +39,24 @@ export function marketplaceSourceSetting(source: string): MarketplaceSetting {
   return { source: { source: "github", repo: source } };
 }
 
-export function mergeProductPlugin(
+export function mergeManagedProjectPlugins(
   current: ProjectSettings,
   marketplace: MarketplaceConfig,
-  product: string,
+  projectPlugins: string[],
+  ownedPlugins: string[],
 ): ProjectSettings {
-  const normalized = productPluginName(product);
-  const spec = `${normalized}@${marketplace.name}`;
+  const desired = new Set(projectPlugins.map((plugin) => `${plugin}@${marketplace.name}`));
+  const owned = new Set(ownedPlugins);
+  const enabledPlugins = { ...(current.enabledPlugins ?? {}) };
+  for (const spec of owned) if (!desired.has(spec)) delete enabledPlugins[spec];
+  for (const spec of desired) if (owned.has(spec) || !(spec in enabledPlugins)) enabledPlugins[spec] = true;
+  const ownsNewPlugin = [...desired].some((spec) => owned.has(spec) || !(spec in (current.enabledPlugins ?? {})));
+  if (!ownsNewPlugin && owned.size === 0) return current;
   return {
     ...current,
-    extraKnownMarketplaces: {
-      ...(current.extraKnownMarketplaces ?? {}),
-      [marketplace.name]: marketplaceSourceSetting(marketplace.source),
-    },
-    enabledPlugins: {
-      ...(current.enabledPlugins ?? {}),
-      [spec]: true,
-    },
+    ...(ownsNewPlugin ? { extraKnownMarketplaces: { ...(current.extraKnownMarketplaces ?? {}), [marketplace.name]: marketplaceSourceSetting(marketplace.source) } } : {}),
+    enabledPlugins,
   };
-}
-
-export function productPluginName(product: string): string {
-  return product.startsWith("product-") ? product : `product-${product}`;
-}
-
-export function enabledProductPlugins(settings: ProjectSettings, marketplaceName: string): string[] {
-  return Object.entries(settings.enabledPlugins ?? {})
-    .filter(([spec, enabled]) => enabled && spec.startsWith("product-") && spec.endsWith(`@${marketplaceName}`))
-    .map(([spec]) => spec)
-    .sort();
 }
 
 export async function writeProjectSettings(workspaceRoot: string, settings: ProjectSettings): Promise<void> {

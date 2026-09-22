@@ -79,7 +79,13 @@ The plugin name does not encode its kind. The CLI reads the shared metadata name
 }
 ```
 
-`kind` is `common`, `role`, or `product`. If the namespace ever changes, update both `TEAM_AI_EXTENSION_NAMESPACE` in the CLI and the `extensions` namespace in every Marketplace `plugin.json`.
+`kind` is `common`, `role`, or `project`. A Logical Project may optionally reference one `project` Plugin from `manifest/projects.yaml`.
+
+## Logical Project context and learnings
+
+`team-ai init --project <id>` accepts repeated or comma-separated IDs. `team-ai projects list` reads the catalog; `team-ai projects set <ids...>` changes the current physical Git workspace binding. The concrete convergence used by `init`, `projects set`, and `sync` has four scopes: Marketplace Plugin packages, managed user instructions, physical-repository Logical Project instructions, and physical-repository context/learning files.
+
+Active Project instruction files are mirrored byte-for-byte to `.github/instructions/team-ai/<id>/`; project docs and project/shared learnings go to `.team-ai/context/`. Team AI writes one `context.instructions.md` pointer with `applyTo: "**"`, plus Git-resolved `info/exclude` entries for only those two reserved roots. It never adopts an occupied reserved path, even if empty, and never rewrites Marketplace source frontmatter. Portable or path-specific `applyTo` matching remains a documented future validation item; no runtime instruction injection is claimed.
 
 ## Marketplace-managed user instructions
 
@@ -120,9 +126,9 @@ Initialization:
 4. installs `common` and every `kind: role` plugin in the catalog;
 5. enables only `common` and the selected role;
 6. stores the selected role, Marketplace identity, and explicit Team AI ownership;
-7. optionally validates a Product plugin and declares it in the real repository settings.
+7. optionally binds Logical Projects and converges their project-scoped context.
 
-Product plugins are not installed at user scope. The current Product path uses the existing `product-*` plugin names (for example `product-teamai`) and enables them through `.github/copilot/settings.json` only after catalog validation.
+Project Plugins are optional executable capabilities. They are declared by a Logical Project manifest and enabled only in the bound physical repository settings.
 
 Example persisted config:
 
@@ -146,7 +152,17 @@ The config schema is version `1` and uses `marketplace.source` as its only sourc
 ## Commands
 
 ```text
-team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--product <name>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]
+team-ai projects [list]
+team-ai projects set <ids...>
+team-ai learning share <file> [--project <id>|--shared] [--tags <tag...>]
+team-ai skill list [--tag <tag>] [--owner <owner>] [--source plugin|standalone]
+team-ai skill show <name>
+team-ai skill install <name...>
+team-ai skill install --tag <tag> [--yes]
+team-ai skill remove <name...>
+team-ai skill contribute <path> --owner <owner> [--tags <tag...>] --target standalone|plugin [--plugin <plugin>]
+team-ai tags list
 team-ai sync
 team-ai role list
 team-ai role set <role>
@@ -156,9 +172,17 @@ team-ai doctor
 
 All write commands support the global `--dry-run` option. A first-time dry run can inspect the supplied Marketplace and reports planned Marketplace/plugin/config/project changes without mutating state.
 
+`learning share` adds the supplied Markdown body to `learnings/<project>/` through a GitHub pull request. It defaults to the one active Logical Project, uses `shared` with none, and requires `--project` or `--shared` with several. Contributions use an isolated bare clone and worktree; they never change the active Marketplace checkout or shared read cache. A dry run previews the branch, commit, push, and pull-request steps without performing them.
+
 ### `team-ai sync`
 
-`sync` means convergence and repair. It installs missing Team AI-owned user plugins, restores enablement, refreshes Marketplace registration, updates VS Code Marketplace registration, and refreshes project machine state. It does not copy central Skills, Agents, Instructions, Hooks, or MCP definitions into the project, and it does not provide arbitrary or generic resource copying.
+`sync` means convergence and repair. It installs missing Team AI-owned user plugins, restores enablement, refreshes Marketplace registration, updates VS Code Marketplace registration, refreshes project machine state, and repairs managed personal Skills. It does not copy central Skills, Agents, Instructions, Hooks, or MCP definitions into the project.
+
+### `team-ai skill` and `team-ai tags`
+
+Skill reads use the saved Marketplace cache. The catalog scans Plugin-contained and top-level Skills, then reads owner/tags/standalone governance from `skills.yaml`. `skill install --tag` resolves the current matching names and stores those explicit names; tags are not subscriptions. Top-level Skills are copied byte-for-byte to `~/.copilot/skills/<name>/`. Explicitly standalone Plugin Skills are copied there only when the containing Plugin is not already enabled. Existing unowned personal Skill directories are refused; `skill remove` deletes only recorded Team AI-owned copies.
+
+`skill contribute` sends a local Skill directory through the same isolated GitHub worktree and PR flow as `learning share`. It requires an owner and target; plugin targets also require an existing Marketplace plugin. The command checks `SKILL.md`, unsafe paths, name collisions, and `skills.yaml` metadata, but does not provide a Skill quality-lint command.
 
 ### `team-ai role`
 
@@ -171,7 +195,7 @@ Changing role keeps all Team AI role plugins installed, enables `common` plus th
 
 ### `team-ai status` and `team-ai doctor`
 
-These commands inspect config, Marketplace/plugin state, native MCP metadata, VS Code registration, project settings, Git identity, and machine state. Hook declarations are validated as Marketplace content, but the CLI does not execute Hooks or pretend that unavailable runtime inspection succeeded.
+`status` reports Marketplace revision, selected Logical Projects, managed personal Skills, Project context, and learning projection. `doctor` reuses dry-run convergence against the locally loaded cache to report stale context, missing or colliding owned Skills, invalid active Project bindings, and optional Plugin inconsistencies without repairing them. Neither command refreshes a remote Marketplace cache. Hook declarations are validated as Marketplace content, but the CLI does not execute Hooks or pretend that unavailable runtime inspection succeeded.
 
 ## Native Copilot and VS Code-only fallback
 
@@ -203,7 +227,7 @@ User-level Copilot registration is represented by `extraKnownMarketplaces` in `~
 
 Team AI also registers the source in VS Code User Settings under `chat.plugins.marketplaces`. The merge is JSONC-safe: comments, trailing commas, unknown settings, and existing entries are preserved, while the configured source is inserted or moved to index `0`.
 
-Product declarations use the real repository file `.github/copilot/settings.json`. Team AI read-modify-writes only the relevant Marketplace/Product entries and preserves unrelated fields, marketplaces, and plugins.
+Logical Project projections use `.github/instructions/team-ai/**` and `.team-ai/context/**`; both reserved paths are rejected when unowned. Optional Project Plugin settings are read-modify-written only for explicitly owned entries.
 
 ## Ownership and project state
 
@@ -243,11 +267,11 @@ npm run test:e2e:fallback
 npm test
 ```
 
-The two E2E scripts create isolated temporary profiles and repositories. `test:e2e:copilot` exercises native Copilot; `test:e2e:fallback` exercises the VS Code-only materializer and then checks native Copilot recognition of the materialized state. The latest branch evidence is recorded in [`docs/HANDOFF.md`](docs/HANDOFF.md).
+The two E2E scripts create isolated temporary profiles and repositories. `test:e2e:copilot` verifies projected instruction bytes and native instruction listing by name/scope/source, plus exact native paths for a real personal Skill and an enabled Plugin Skill. `test:e2e:fallback` requires `TEAM_AI_E2E_CODE_BIN` or a working `code` command, validates it with the isolated profile, then exercises the VS Code-only materializer and native recognition of the materialized state. Resource listing is not proof that a model read ignored docs or applied `applyTo`; that authenticated model-read probe remains unverified. The latest branch evidence is recorded in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 ## Non-goals
 
-This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, arbitrary or generic resource copying/injection (the only narrow exception is the frozen Marketplace-managed `instructions/**/*.instructions.md` contract described above), a generic overlay engine, telemetry, dashboards, TeamWiki/Recall/Learning, or a custom Product/Project database.
+This project does not implement a default Marketplace, multiple-Marketplace merge/overlay/precedence, a package manager, another agent runtime, an IDE abstraction, custom Plugin/Skill/Hook/MCP formats, arbitrary or generic resource copying/injection beyond the documented user and Logical Project projections, a generic overlay engine, telemetry, dashboards, knowledge retrieval/ranking, or a custom business-context database.
 
 ## Project documents
 

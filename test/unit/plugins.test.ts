@@ -9,7 +9,7 @@ const catalog: CatalogPlugin[] = [
   { name: "common", version: "0.1.0", kind: "common", root: "common" },
   { name: "api", version: "0.1.0", kind: "role", root: "api" },
   { name: "qa", version: "0.1.0", kind: "role", root: "qa" },
-  { name: "payments", version: "0.1.0", kind: "product", root: "payments" },
+  { name: "payments", version: "0.1.0", kind: "project", root: "payments" },
 ];
 
 describe("desired plugin resolution", () => {
@@ -25,7 +25,7 @@ describe("desired plugin resolution", () => {
     ]);
   });
 
-  test("validates roles and product plugins by extension kind before mutation", async () => {
+  test("validates roles before mutation", async () => {
     let mutated = false;
     const client = {
       listMarketplaces: async () => [],
@@ -35,8 +35,6 @@ describe("desired plugin resolution", () => {
     config.role = "api";
 
     expect(() => enabledUserPlugins("payments", catalog, TEST_MARKETPLACE_NAME)).toThrow("Unknown role 'payments'");
-    await expect(convergeUserPlugins(client, config, catalog, { requiredCatalogPlugin: "missing" }))
-      .rejects.toThrow(`Product plugin missing@${TEST_MARKETPLACE_NAME} is not present`);
     expect(mutated).toBe(false);
   });
 });

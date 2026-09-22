@@ -1,15 +1,19 @@
-import { access } from "node:fs/promises";
+import { access, lstat } from "node:fs/promises";
 import { constants } from "node:fs";
+import path from "node:path";
 import { readGlobalConfig } from "../config/global.js";
 import { enabledUserPlugins, pluginSpec, userPlugins } from "../copilot/plugins.js";
-import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
+import { effectiveEnabledPluginSpecs, convergeManagedSkills } from "../copilot/skills.js";
+import { readProjectSettings } from "../copilot/project-settings.js";
 import type { MarketplaceCatalog } from "../copilot/catalog.js";
 import { checkUserInstructionState, discoverMarketplaceUserInstructions, userInstructionTargetRoot } from "../copilot/user-instructions.js";
 import { fallbackStateProblems, marketplaceRegistrationMatches, readCopilotState } from "../copilot/user-state.js";
 import { vscodeMarketplaceIsFirst } from "../copilot/vscode-settings.js";
 import { detectProjectIdentity } from "../project/anchors.js";
+import { convergeLogicalProjectContext, projectionFor } from "../project/context.js";
+import { loadLogicalProjects, selectedLogicalProjects } from "../project/manifest.js";
 import { partitionPath } from "../project/partition.js";
-import { inspectProjectPartitions } from "../project/state.js";
+import { inspectProjectPartitions, readProjectState } from "../project/state.js";
 import { executableVersion } from "../utils/process.js";
 import { readTextIfExists } from "../utils/fs.js";
 import type { CommandContext } from "./context.js";
@@ -114,7 +118,7 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     }
   }
 
-  let marketplaceCatalog: { name: string }[] | undefined;
+  let catalogSnapshot: Pick<MarketplaceCatalog, "root" | "plugins" | "skills" | "revision"> | undefined;
   if (config) {
     let catalog: MarketplaceCatalog | undefined;
     try {
@@ -122,6 +126,8 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
       if (catalog.name !== config.marketplace.name) {
         throw new Error(`Marketplace name changed from '${config.marketplace.name}' to '${catalog.name}'.`);
       }
+      catalogSnapshot = { root: catalog.root, plugins: catalog.plugins, skills: catalog.skills, revision: catalog.revision };
+      ok(`Marketplace cache/catalog: ${catalog.revision ?? "local source"}.`);
       await reportManagedUserInstructions(catalog.root, context.homeDir, ok, warn, fail);
 
       if (copilotAvailable) {
@@ -130,7 +136,6 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
           fail(`Marketplace ${config.marketplace.name} is not registered. Run team-ai sync.`);
         } else {
           ok(`Marketplace ${config.marketplace.name} is registered.`);
-          marketplaceCatalog = await context.copilot.browseMarketplace(config.marketplace.name, context.cwd);
         }
         if (config.role) {
           const plugins = await context.copilot.listPlugins(context.cwd);
@@ -150,6 +155,7 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     }
   }
 
+  let projectSettings;
   const identity = gitVersion ? await detectProjectIdentity(context.cwd) : undefined;
   if (!identity) {
     warn("Current directory is not inside a Git repository; project checks were skipped.");
@@ -157,25 +163,66 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
     ok(`Workspace root: ${identity.workspaceRoot}`);
     if (identity.projectAnchor !== identity.workspaceRoot) ok(`Git worktree anchor: ${identity.projectAnchor}`);
     try {
-      const settings = await readProjectSettings(identity.workspaceRoot);
+      projectSettings = await readProjectSettings(identity.workspaceRoot);
       ok("Repository Copilot settings are parseable.");
-      if (config) {
-        const products = enabledProductPlugins(settings, config.marketplace.name);
-        const catalogNames = new Set((marketplaceCatalog ?? []).map((item) => item.name));
-        for (const spec of products) {
-          const name = spec.split("@")[0];
-          if (marketplaceCatalog && !catalogNames.has(name)) fail(`${spec} is not present in ${config.marketplace.name}.`);
-          else if (marketplaceCatalog) ok(`Product plugin declaration: ${spec}`);
-        }
-      }
     } catch (error) {
       fail((error as Error).message);
+    }
+    const state = await readProjectState(identity.projectAnchor, context.homeDir);
+    const projection = projectionFor(state, identity.workspaceRoot);
+    for (const root of [path.join(identity.workspaceRoot, ".github", "instructions", "team-ai"), path.join(identity.workspaceRoot, ".team-ai", "context")]) {
+      try {
+        await lstat(root);
+        if (!projection || (projection.instructionRoot !== root && projection.contextRoot !== root)) {
+          fail(`Reserved Team AI projection path is occupied without ownership: ${root}`);
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") fail((error as Error).message);
+      }
+    }
+    if (config && catalogSnapshot) {
+      try {
+        const projects = await loadLogicalProjects(catalogSnapshot.root, catalogSnapshot.plugins);
+        if (projection) {
+          selectedLogicalProjects(projects, projection.logicalProjects);
+          const result = await convergeLogicalProjectContext({
+            marketplaceRoot: catalogSnapshot.root,
+            plugins: catalogSnapshot.plugins,
+            marketplace: config.marketplace,
+            identity,
+            state,
+            logicalProjects: projection.logicalProjects,
+            dryRun: true,
+          });
+          const projectionStateChanged = JSON.stringify(result.projection) !== JSON.stringify(projection);
+          if (result.changes.length === 0 && !projectionStateChanged) ok("Logical Project context: current.");
+          else warn("Logical Project context is stale. Run team-ai sync.");
+          for (const message of result.warnings) warn(`Logical Project Plugin: ${message}`);
+          projectSettings = result.mergedSettings;
+        } else {
+          ok(`Logical Project manifest: ${projects.length} available, no workspace binding.`);
+        }
+      } catch (error) {
+        fail(`Logical Project/Skill diagnostics failed: ${(error as Error).message}`);
+      }
     }
     try {
       await access(context.homeDir, constants.W_OK);
       ok(`Machine state location is writable: ${partitionPath(identity.projectAnchor, context.homeDir)}`);
     } catch {
       fail(`Home directory is not writable; cannot create ${partitionPath(identity.projectAnchor, context.homeDir)}`);
+    }
+  }
+
+  if (config && catalogSnapshot) {
+    try {
+      const installed = copilotAvailable ? await context.copilot.listPlugins(context.cwd) : [];
+      const skillResult = await convergeManagedSkills(config, catalogSnapshot.skills, effectiveEnabledPluginSpecs(installed, projectSettings), context.homeDir, { dryRun: true });
+      const skillStateChanged = JSON.stringify(skillResult.managedSkillPaths) !== JSON.stringify(config.managedSkillPaths ?? {});
+      if (skillResult.changes.length === 0 && !skillStateChanged) ok("Managed personal skills: current.");
+      else warn("Managed personal skills are stale. Run team-ai sync.");
+    } catch (error) {
+      fail(`Managed personal skill diagnostics failed: ${(error as Error).message}`);
     }
   }
 

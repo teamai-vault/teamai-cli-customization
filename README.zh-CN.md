@@ -79,7 +79,13 @@ Plugin 名称不再编码 kind。CLI 读取统一的 metadata namespace `com.com
 }
 ```
 
-`kind` 取 `common`、`role` 或 `product`。如果未来必须修改 namespace，必须同时更新 CLI 中的 `TEAM_AI_EXTENSION_NAMESPACE` 常量，以及所有 Marketplace `plugin.json` 的 `extensions` namespace。
+`kind` 取 `common`、`role` 或 `project`。Logical Project 可从 `manifest/projects.yaml` 选择性关联一个 `project` Plugin。
+
+## Logical Project Context 与 Learnings
+
+`team-ai init --project <id>` 支持重复传入或逗号分隔 ID。`team-ai projects list` 读取 catalog；`team-ai projects set <ids...>` 修改当前 Physical Git workspace 的绑定。`init`、`projects set` 和 `sync` 复用同一份具体收敛：Marketplace Plugin package、受管理的用户级 instructions、Physical Repository 中的 Logical Project instructions，以及 Physical Repository 中的 context/learning 文件，分别属于四个 scope。
+
+active Project instruction 文件按原始字节镜像到 `.github/instructions/team-ai/<id>/`；Project docs 与 Project/shared learnings 写入 `.team-ai/context/`。Team AI 只写一个 `applyTo: "**"` 的 `context.instructions.md` pointer，并通过 Git 解析后的 `info/exclude` 仅排除这两个 reserved root。即使目录为空，也不会接管未声明 ownership 的 reserved path，也不会改写 Marketplace source frontmatter。portable 或 path-specific `applyTo` 的匹配仍是后续验证事项；当前不宣称 runtime instruction injection。
 
 ## Marketplace 管理的用户级 Instructions
 
@@ -120,9 +126,9 @@ team-ai init --marketplace <source> --role <role>
 4. 安装目录中所有 `kind: role` Plugin 与 `common`；
 5. 只启用 `common` 和当前选择的 Role；
 6. 保存 Role、Marketplace identity 和明确的 Team AI ownership；
-7. 如指定 Product，则先校验目录，再在真实业务 Repo settings 中声明。
+7. 如指定 Logical Project，则投影其上下文并收敛可选 Plugin。
 
-Product Plugin 不在 User Scope 安装。当前 Product 路径保持既有 `product-*` Plugin 命名（例如 `product-teamai`），只在 `.github/copilot/settings.json` 中声明启用，并且必须先通过 Marketplace catalog 校验。
+Project Plugin 是可选的可执行能力，由 Logical Project manifest 声明，只在绑定的 Physical Project settings 中启用。
 
 保存后的配置示例：
 
@@ -146,7 +152,17 @@ config schema 固定为 `version: 1`，唯一的 Marketplace source 字段为 `m
 ## 命令
 
 ```text
-team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--product <name>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]
+team-ai projects [list]
+team-ai projects set <ids...>
+team-ai learning share <file> [--project <id>|--shared] [--tags <tag...>]
+team-ai skill list [--tag <tag>] [--owner <owner>] [--source plugin|standalone]
+team-ai skill show <name>
+team-ai skill install <name...>
+team-ai skill install --tag <tag> [--yes]
+team-ai skill remove <name...>
+team-ai skill contribute <path> --owner <owner> [--tags <tag...>] --target standalone|plugin [--plugin <plugin>]
+team-ai tags list
 team-ai sync
 team-ai role list
 team-ai role set <role>
@@ -156,9 +172,17 @@ team-ai doctor
 
 所有写操作支持全局 `--dry-run`。首次 dry-run 会读取给定 Marketplace 并显示计划中的 Marketplace、Plugin、config 与 project 改动，不产生实际 mutation。
 
+`learning share` 会把提供的 Markdown 正文经由 GitHub PR 加入 `learnings/<project>/`。恰有一个 active Logical Project 时默认选中它，没有 active Project 时写入 `shared`，有多个时必须给出 `--project` 或 `--shared`。贡献流程使用隔离的 bare clone 和 worktree，不会修改当前 Marketplace checkout 或 shared read cache；dry-run 只预览 branch、commit、push 与 PR 步骤。
+
 ### `team-ai sync`
 
-`sync` 表示 convergence / repair：补齐缺失的 Team AI-owned User Plugin，恢复 enablement，刷新 Marketplace 注册和 VS Code Marketplace 注册，并刷新 Project machine state。它不会把中央 Skills、Agents、Instructions、Hooks 或 MCP 定义复制进业务 Repo，也不提供 arbitrary 或 generic resource copying。
+`sync` 表示 convergence / repair：补齐缺失的 Team AI-owned User Plugin，恢复 enablement，刷新 Marketplace 注册和 VS Code Marketplace 注册，刷新 Project machine state，并修复受管理的 personal Skill。它不会把中央 Skills、Agents、Instructions、Hooks 或 MCP 定义复制进业务 Repo。
+
+### `team-ai skill` 与 `team-ai tags`
+
+Skill read 使用已保存的 Marketplace cache。Catalog 扫描 Plugin-contained 和顶级 Skill，再从 `skills.yaml` 读取 owner/tags/standalone 治理信息。`skill install --tag` 只解析当前匹配的 name 并保存这些显式 name；tag 不是订阅。顶级 Skill 按原始字节复制到 `~/.copilot/skills/<name>/`。明确标为 standalone 的 Plugin Skill 只有在 containing Plugin 未启用时才复制到该位置。已有的 user-owned personal Skill 目录会拒绝覆盖；`skill remove` 只删除有 Team AI ownership record 的副本。
+
+`skill contribute` 与 `learning share` 共用隔离 GitHub worktree 和 PR 流程，接收本地 Skill 目录。它要求 owner 和 target；plugin target 还要求 Marketplace 中存在该 Plugin。命令会检查 `SKILL.md`、不安全路径、名称冲突和 `skills.yaml` metadata，但不提供 Skill quality lint 命令。
 
 ### `team-ai role`
 
@@ -171,7 +195,7 @@ team-ai role set qa
 
 ### `team-ai status` 与 `team-ai doctor`
 
-两者检查 config、Marketplace/Plugin 状态、native MCP metadata、VS Code 注册、Project settings、Git identity 和 machine state。Hook 声明可静态校验，但 CLI 不执行 Hook，也不把不可用的 runtime inspection 伪装成成功。
+`status` 输出 Marketplace revision、选中的 Logical Projects、managed personal Skills、Project context 和 Learnings projection。`doctor` 在本地已加载 cache 上复用 dry-run convergence，报告 stale context、缺失或 collision 的 owned Skill、无效 active Project binding 与 optional Plugin 不一致，但不修复它们。两者都不刷新远端 Marketplace cache。Hook 声明可静态校验，但 CLI 不执行 Hook，也不把不可用的 runtime inspection 伪装成成功。
 
 ## Native Copilot 与 VS Code-only fallback
 
@@ -203,7 +227,7 @@ User-level Copilot 注册由 `~/.copilot/settings.json` 的 `extraKnownMarketpla
 
 Team AI 同时在 VS Code User Settings 的 `chat.plugins.marketplaces` 中注册 source。合并使用 JSONC-safe 解析：保留 comments、trailing commas、未知 settings 和原有 entries，并将当前 source 插入或移动到数组下标 `0`。
 
-Product 声明使用真实业务 Repo 的 `.github/copilot/settings.json`。Team AI 只 read-modify-write 相关 Marketplace/Product 字段，保留无关字段、Marketplace 与 Plugin。
+Logical Project 投影使用 `.github/instructions/team-ai/**` 和 `.team-ai/context/**`；未声明 ownership 时会拒绝覆盖。Project Plugin settings 只会改动 Team AI 明确拥有的条目。
 
 ## Ownership 与 Project state
 
@@ -243,11 +267,11 @@ npm run test:e2e:fallback
 npm test
 ```
 
-两个 E2E 脚本都会创建隔离的临时 profile 和 Git Repo。`test:e2e:copilot` 验证 native Copilot；`test:e2e:fallback` 验证 VS Code-only materializer，并再检查 materialized state 能被 native Copilot 识别。本分支最新实证见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
+两个 E2E 脚本都会创建隔离的临时 profile 和 Git Repo。`test:e2e:copilot` 验证投影 instruction 的原始字节，以及 native instruction list 的 name/scope/source，并验证真实 personal Skill 与已启用 Plugin Skill 的精确 native path；`test:e2e:fallback` 需要 `TEAM_AI_E2E_CODE_BIN` 或可用的 `code` 命令，并在隔离 profile 中先验证它，再验证 VS Code-only materializer 与 native 对 materialized state 的识别。资源列表不等于模型读取 ignored docs 或应用 `applyTo`；认证 model-read probe 仍未验证。本分支最新实证见 [`docs/HANDOFF.md`](docs/HANDOFF.md)。
 
 ## 当前不做
 
-本项目不实现默认 Marketplace、多 Marketplace merge/overlay/precedence、Package Manager、另一套 Agent Runtime、通用 IDE abstraction、自定义 Plugin/Skill/Hook/MCP 格式、arbitrary 或 generic resource copying/injection（唯一窄例外是上文 frozen 的 Marketplace-managed `instructions/**/*.instructions.md` contract）、通用 overlay engine、telemetry、dashboard、TeamWiki/Recall/Learning，也不创建自定义 Product/Project database。
+本项目不实现默认 Marketplace、多 Marketplace merge/overlay/precedence、Package Manager、另一套 Agent Runtime、通用 IDE abstraction、自定义 Plugin/Skill/Hook/MCP 格式、文档所列 User/Logical Project 投影之外的 arbitrary 或 generic resource copying/injection、通用 overlay engine、telemetry、dashboard、知识检索或排序，也不创建自定义业务上下文数据库。
 
 ## 项目文档
 

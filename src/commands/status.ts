@@ -1,8 +1,9 @@
 import { readGlobalConfig } from "../config/global.js";
+import path from "node:path";
 import { pluginSpec } from "../copilot/plugins.js";
-import { enabledProductPlugins, readProjectSettings } from "../copilot/project-settings.js";
 import { checkUserInstructionState, discoverMarketplaceUserInstructions, userInstructionTargetRoot } from "../copilot/user-instructions.js";
 import { detectProjectIdentity } from "../project/anchors.js";
+import { projectionFor } from "../project/context.js";
 import { partitionPath } from "../project/partition.js";
 import { readProjectState } from "../project/state.js";
 import type { CommandContext } from "./context.js";
@@ -18,7 +19,9 @@ export async function statusCommand(context: CommandContext): Promise<void> {
     context.out("  User instructions: not initialized");
   } else {
     context.out(`  Marketplace: ${config.marketplace.name} (${config.marketplace.source})`);
+    context.out(`  Marketplace revision: ${config.marketplaceRevision ?? "unknown"}`);
     context.out(`  Role: ${config.role ?? "not set"}`);
+    context.out(`  Managed personal skills: ${config.managedSkills?.join(", ") || "none"}`);
     try {
       const marketplaces = await context.copilot.listMarketplaces(context.cwd);
       context.out(`  Marketplace registered: ${marketplaces.some((item) => item.name === config.marketplace.name) ? "yes" : "no"}`);
@@ -35,14 +38,20 @@ export async function statusCommand(context: CommandContext): Promise<void> {
     try {
       const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd);
       try {
-        const desired = await discoverMarketplaceUserInstructions(catalog.root);
-        const state = await checkUserInstructionState(desired, userInstructionTargetRoot(context.homeDir));
-        context.out(`  User instructions: ${state.current ? `${state.desiredCount} managed, current` : "stale"}`);
+        if (catalog.revision && catalog.revision !== config.marketplaceRevision) context.out(`  Marketplace cache revision: ${catalog.revision}`);
+        try {
+          const desired = await discoverMarketplaceUserInstructions(catalog.root);
+          const state = await checkUserInstructionState(desired, userInstructionTargetRoot(context.homeDir));
+          context.out(`  User instructions: ${state.current ? `${state.desiredCount} managed, current` : "stale"}`);
+        } catch (error) {
+          context.out(`  User instructions: unavailable (${(error as Error).message})`);
+        }
       } finally {
         await catalog.dispose();
       }
     } catch (error) {
-      context.out(`  User instructions: unavailable (${(error as Error).message})`);
+      context.out(`  Marketplace cache: unavailable (${(error as Error).message})`);
+      context.out("  User instructions: unavailable (Marketplace cache unavailable)");
     }
   }
 
@@ -66,11 +75,6 @@ export async function statusCommand(context: CommandContext): Promise<void> {
   }
   context.out(`  Root: ${identity.workspaceRoot}`);
   context.out(`  Anchor: ${identity.projectAnchor}`);
-  if (config) {
-    const settings = await readProjectSettings(identity.workspaceRoot);
-    const products = enabledProductPlugins(settings, config.marketplace.name);
-    context.out(`  Product plugins: ${products.length > 0 ? products.join(", ") : "none"}`);
-  }
   const counts = await projectCustomizationCounts(identity.workspaceRoot);
   context.out(`  Native skills: ${counts.skills}`);
   context.out(`  Native agents: ${counts.agents}`);
@@ -78,6 +82,11 @@ export async function statusCommand(context: CommandContext): Promise<void> {
   context.out(`  Native instructions: ${counts.instructions}`);
   context.out(`  copilot-instructions.md: ${counts.rootInstructions ? "present" : "missing"}`);
   const state = await readProjectState(identity.projectAnchor, context.homeDir);
+  const projection = projectionFor(state, identity.workspaceRoot);
+  context.out(`  Logical Projects: ${projection?.logicalProjects.join(", ") || "none"}`);
+  context.out(`  Project plugins: ${projection?.managedProjectPlugins.join(", ") || "none"}`);
+  context.out(`  Project context: ${projection ? projection.contextRoot : "not initialized"}`);
+  context.out(`  Learnings projection: ${projection ? path.join(projection.contextRoot, "shared", "learnings") : "not initialized"}`);
   context.out("");
   context.out("Machine state");
   context.out(`  Partition: ${partitionPath(identity.projectAnchor, context.homeDir)}`);

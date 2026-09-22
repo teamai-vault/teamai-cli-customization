@@ -74,8 +74,9 @@ export async function loadFakeMarketplace(root = path.join(os.tmpdir(), "team-ai
       { name: "aos", version: "0.1.0", kind: "role", root: "aos" },
       { name: "qa", version: "0.1.0", kind: "role", root: "qa" },
       { name: "design", version: "0.1.0", kind: "role", root: "design" },
-      { name: "product-teamai", version: "0.1.0", kind: "product", root: "product-teamai" },
+      { name: "payments", version: "0.1.0", kind: "project", root: "payments" },
     ],
+    skills: [],
     dispose: async () => undefined,
   };
 }

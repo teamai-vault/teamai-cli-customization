@@ -18,6 +18,9 @@ import {
   TEST_MARKETPLACE_SOURCE,
 } from "../helpers/test-utils.js";
 
+// Windows subprocess startup can exceed the historic per-test budgets under serialized load.
+const CLI_PROCESS_TEST_TIMEOUT = 60_000;
+
 function capture() {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -42,7 +45,14 @@ describe("CLI integration with fake Copilot executable", () => {
 
     expect(await readGlobalConfig(home)).toBeUndefined();
     expect(output.stderr.some((line) => line.includes("--marketplace <source>"))).toBe(true);
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
+
+  test("rejects the removed Product option", async () => {
+    const repo = await createGitRepo();
+    const output = capture();
+    expect(await runCli(["init", "--product=payments"], { cwd: repo, out: output.out, err: output.err })).toBe(1);
+    expect(output.stderr).toContain("ERROR: --product has been removed. Use --project <id>.");
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("init converges instructions when Copilot and VS Code backends are unavailable", async () => {
     const repo = await createGitRepo();
@@ -66,7 +76,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await readFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "utf8"))
       .toBe("managed without backend\n");
     expect(output.stderr.some((line) => line.includes("plugin convergence could not run"))).toBe(true);
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("non-interactive init reports each missing required value", async () => {
     const repo = await createGitRepo();
@@ -83,7 +93,7 @@ describe("CLI integration with fake Copilot executable", () => {
       err: output.err,
     })).toBe(1);
     expect(output.stderr.some((line) => line.includes("Role is required in non-interactive mode"))).toBe(true);
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("interactive init prompts only for missing values", async () => {
     const cases = [
@@ -113,7 +123,7 @@ describe("CLI integration with fake Copilot executable", () => {
       expect(rolePrompts).toBe(item.rolePrompts);
       expect((await readGlobalConfig(home))?.role).toBe("qa");
     }
-  }, 30_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("init discovers marketplace name from Copilot and remains repeatable", async () => {
     const repo = await createGitRepo();
@@ -172,11 +182,36 @@ describe("CLI integration with fake Copilot executable", () => {
     const status = capture();
     expect(await runCli(["status"], { ...base, out: status.out, err: status.err })).toBe(0);
     expect(status.stdout.some((line) => line.includes(`qa@${TEST_MARKETPLACE_NAME}: enabled`))).toBe(true);
+    expect(status.stdout).toContain("  Marketplace revision: unknown");
+    expect(status.stdout).toContain("  Managed personal skills: none");
+    expect(status.stdout.some((line) => line.startsWith("  Project context: "))).toBe(true);
+    expect(status.stdout.some((line) => line.startsWith("  Learnings projection: "))).toBe(true);
 
     const doctor = capture();
     expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(0);
     expect(doctor.stdout.some((line) => line.includes(`qa@${TEST_MARKETPLACE_NAME} is enabled.`))).toBe(true);
-  }, 30_000);
+    expect(doctor.stdout).toContain("✓ Logical Project context: current.");
+    expect(doctor.stdout).toContain("✓ Managed personal skills: current.");
+
+    const unavailableStatus = capture();
+    expect(await runCli(["status"], {
+      ...base,
+      loadMarketplace: async () => { throw new Error("cache unavailable"); },
+      out: unavailableStatus.out,
+      err: unavailableStatus.err,
+    })).toBe(0);
+    expect(unavailableStatus.stdout).toContain("  Marketplace revision: unknown");
+    expect(unavailableStatus.stdout).toContain("  Managed personal skills: none");
+    expect(unavailableStatus.stdout.some((line) => line.includes("Marketplace cache: unavailable"))).toBe(true);
+
+    const staleState = JSON.parse(await readFile(statePath, "utf8"));
+    const projectionKey = Object.keys(staleState.projections)[0];
+    staleState.projections[projectionKey].managedProjectPlugins = [`payments@${TEST_MARKETPLACE_NAME}`];
+    await writeFile(statePath, `${JSON.stringify(staleState, null, 2)}\n`, "utf8");
+    const staleDoctor = capture();
+    expect(await runCli(["doctor"], { ...base, out: staleDoctor.out, err: staleDoctor.err })).toBe(0);
+    expect(staleDoctor.stdout).toContain("! Logical Project context is stale. Run team-ai sync.");
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("first-time dry-run discovers metadata without mutating Copilot", async () => {
     const repo = await createGitRepo();
@@ -198,7 +233,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await readGlobalConfig(home)).toBeUndefined();
     expect(output.stdout).toContain(`WOULD marketplace-add: ${TEST_MARKETPLACE_SOURCE}`);
     expect(output.stdout).toContain(`WOULD plugin-install: api@${TEST_MARKETPLACE_NAME}`);
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("refuses a different marketplace source after initialization", async () => {
     const repo = await createGitRepo();
@@ -216,7 +251,7 @@ describe("CLI integration with fake Copilot executable", () => {
       err: next.err,
     })).toBe(1);
     expect(next.stderr.some((line) => line.includes("Refusing to switch Marketplace during init"))).toBe(true);
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("does not claim or mutate a pre-existing user-owned Team AI role plugin", async () => {
     const repo = await createGitRepo();
@@ -242,7 +277,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(config?.managedPlugins).not.toContain(`api@${TEST_MARKETPLACE_NAME}`);
     expect(config?.managedPlugins).toHaveLength(5);
     expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("warns when an enabled desired plugin remains user-owned", async () => {
     const repo = await createGitRepo();
@@ -265,7 +300,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect((await fake.readState()).plugins.find((item) => item.name === "api")).toMatchObject({ version: "0.1.0", enabled: true });
     expect((await readGlobalConfig(home))?.managedPlugins).not.toContain(`api@${TEST_MARKETPLACE_NAME}`);
     expect(output.stdout.some((line) => line.includes("not Team AI managed"))).toBe(true);
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("claims disabled live-marketplace projections by installing the desired plugins", async () => {
     const repo = await createGitRepo();
@@ -294,91 +329,41 @@ describe("CLI integration with fake Copilot executable", () => {
     const config = await readGlobalConfig(home);
     expect(config?.managedPlugins).toHaveLength(6);
     expect(output.stdout.filter((line) => line.includes("plugin-install")).length).toBe(6);
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
-  test("validates a product plugin against the marketplace before writing repository settings", async () => {
+  test("binds comma-separated Logical Projects during init and removes only owned plugins when switched", async () => {
     const repo = await createGitRepo();
-    const home = await tempDir("team-ai-product-home-");
-    const fake = await createFakeCopilot({
-      catalog: {
-        [TEST_MARKETPLACE_NAME]: [
-          { name: "common", version: "0.1.0" },
-          { name: "api", version: "0.1.0" },
-          { name: "product-teamai", version: "0.1.0" },
-        ],
-      },
-    });
-    const output = capture();
-
-    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--product", "teamai"], {
-      cwd: repo,
-      homeDir: home,
-      copilot: fake.client,
-      loadMarketplace: loadFakeMarketplace,
-      out: output.out,
-      err: output.err,
-    })).toBe(0);
-
-    const settings = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8"));
-    expect(settings.enabledPlugins[`product-teamai@${TEST_MARKETPLACE_NAME}`]).toBe(true);
-    expect(settings.extraKnownMarketplaces[TEST_MARKETPLACE_NAME]).toEqual({
-      source: { source: "git", url: TEST_MARKETPLACE_SOURCE },
-    });
-  }, 10_000);
-
-  test("refuses to write an unknown product plugin", async () => {
-    const repo = await createGitRepo();
-    const home = await tempDir("team-ai-product-missing-home-");
+    const home = await tempDir("team-ai-logical-project-home-");
+    const marketplace = await tempDir("team-ai-logical-project-marketplace-");
+    await mkdir(path.join(marketplace, "manifest"), { recursive: true });
+    await mkdir(path.join(marketplace, "contexts", "payments", "instructions"), { recursive: true });
+    await mkdir(path.join(marketplace, "contexts", "risk", "docs"), { recursive: true });
+    await mkdir(path.join(marketplace, "learnings", "shared"), { recursive: true });
+    await writeFile(path.join(marketplace, "manifest", "projects.yaml"), "version: 1\nprojects:\n  - id: payments\n    name: Payments\n    description: Payment domain\n    owners: [payments]\n    plugin: payments\n  - id: risk\n    name: Risk\n    description: Risk domain\n    owners: [risk]\n", "utf8");
+    await writeFile(path.join(marketplace, "contexts", "payments", "instructions", "payments.instructions.md"), "---\napplyTo: \"**\"\n---\n\npayments\n", "utf8");
+    await writeFile(path.join(marketplace, "contexts", "risk", "docs", "risk.md"), "risk\n", "utf8");
+    await writeFile(path.join(marketplace, "learnings", "shared", "shared.md"), "shared\n", "utf8");
+    const loadMarketplace = async () => ({ ...(await loadFakeMarketplace(marketplace)), plugins: [...(await loadFakeMarketplace(marketplace)).plugins, { name: "payments", version: "0.1.0", kind: "project" as const, root: "payments" }] });
     const fake = await createFakeCopilot();
-    const before = await fake.readState();
     const output = capture();
 
-    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--product", "missing"], {
-      cwd: repo,
-      homeDir: home,
-      copilot: fake.client,
-      loadMarketplace: loadFakeMarketplace,
-      out: output.out,
-      err: output.err,
-    })).toBe(1);
-    expect(await fake.readState()).toEqual(before);
-    expect(await readGlobalConfig(home)).toBeUndefined();
-    await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
-    expect(output.stderr.some((line) => line.includes("is not present in the Marketplace"))).toBe(true);
-  }, 10_000);
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--project", "payments", "--project", "risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).resolves.toContain("applyTo: \"**\"");
+    await expect(readFile(path.join(repo, ".team-ai", "context", "risk", "docs", "risk.md"), "utf8")).resolves.toBe("risk\n");
+    const settings = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8"));
+    expect(settings.enabledPlugins[`payments@${TEST_MARKETPLACE_NAME}`]).toBe(true);
 
-  test("doctor rejects a declared product when a readable catalog is empty", async () => {
-    const repo = await createGitRepo();
-    const home = await tempDir("team-ai-empty-catalog-home-");
-    const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
-    config.role = "api";
-    config.managedPlugins = [`common@${TEST_MARKETPLACE_NAME}`, `api@${TEST_MARKETPLACE_NAME}`];
-    await writeGlobalConfig(config, home);
-    const settingsPath = path.join(repo, ".github", "copilot", "settings.json");
-    await mkdir(path.dirname(settingsPath), { recursive: true });
-    await writeFile(settingsPath, JSON.stringify({
-      enabledPlugins: { [`product-teamai@${TEST_MARKETPLACE_NAME}`]: true },
-    }), "utf8");
-    const fake = await createFakeCopilot({
-      marketplaces: [{ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }],
-      plugins: [
-        { name: "common", marketplace: TEST_MARKETPLACE_NAME, version: "0.1.0", enabled: true },
-        { name: "api", marketplace: TEST_MARKETPLACE_NAME, version: "0.1.0", enabled: true },
-      ],
-      catalog: { [TEST_MARKETPLACE_NAME]: [] },
-    });
-    const output = capture();
+    expect(await runCli(["init"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).resolves.toContain("payments");
+    const listed = capture();
+    expect(await runCli(["projects"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: listed.out, err: listed.err })).toBe(0);
+    expect(listed.stdout.some((line) => line.startsWith("* payments"))).toBe(true);
 
-    expect(await runCli(["doctor"], {
-      cwd: repo,
-      homeDir: home,
-      copilot: fake.client,
-      loadMarketplace: loadFakeMarketplace,
-      out: output.out,
-      err: output.err,
-    })).toBe(1);
-    expect(output.stdout).toContain(`✗ product-teamai@${TEST_MARKETPLACE_NAME} is not present in ${TEST_MARKETPLACE_NAME}.`);
-  }, 10_000);
+    expect(await runCli(["projects", "set", "payments,risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    expect(await runCli(["projects", "set", "risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).enabledPlugins[`payments@${TEST_MARKETPLACE_NAME}`]).toBeUndefined();
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("status and doctor inspect native MCP without claiming Hook execution", async () => {
     const repo = await createGitRepo();
@@ -410,7 +395,7 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(0);
     expect(doctor.stdout).toContain("✓ Native MCP inspection: shared-tools");
     expect(doctor.stdout).toContain("! Native Plugin Hook runtime inspection is unavailable; Team AI validates declarations but never executes Hooks.");
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("doctor reports native MCP inspection errors", async () => {
     const repo = await createGitRepo();
@@ -427,7 +412,7 @@ describe("CLI integration with fake Copilot executable", () => {
       err: output.err,
     })).toBe(1);
     expect(output.stdout).toContain("✗ Native MCP inspection: broken MCP declaration");
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("init mirrors nested user instructions byte-for-byte and preserves personal files", async () => {
     const repo = await createGitRepo();
@@ -468,7 +453,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await readFile(rootPersonalPath)).toEqual(rootPersonalContent);
     expect(output.stdout).toContain("DONE create: ~/.copilot/instructions/team-ai/global.instructions.md");
     expect(output.stdout.join("\n")).not.toContain("commit rules");
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("sync converges changes and dry-run performs no instruction writes", async () => {
     const repo = await createGitRepo();
@@ -511,7 +496,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await runCli(["sync"], { ...base, out: emptied.out, err: emptied.err })).toBe(0);
     await expect(readFile(path.join(target, "stale.instructions.md"))).rejects.toMatchObject({ code: "ENOENT" });
     expect(emptied.stdout).toContain("DONE remove: ~/.copilot/instructions/team-ai/stale.instructions.md");
-  }, 20_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("status and doctor report current and stale managed instructions", async () => {
     const repo = await createGitRepo();
@@ -537,7 +522,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const staleStatus = capture();
     expect(await runCli(["status"], { ...base, out: staleStatus.out, err: staleStatus.err })).toBe(0);
     expect(staleStatus.stdout.some((line) => line.includes("User instructions: stale"))).toBe(true);
-  }, 20_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("status reports an empty desired and installed instruction state", async () => {
     const repo = await createGitRepo();
@@ -560,7 +545,7 @@ describe("CLI integration with fake Copilot executable", () => {
       err: output.err,
     })).toBe(0);
     expect(output.stdout).toContain("  User instructions: 0 managed, current");
-  }, 10_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("doctor reports an unwritable planned instruction directory without repairing", async () => {
     const repo = await createGitRepo();
@@ -591,7 +576,7 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(1);
     expect(output.stdout.some((line) => line.includes("Managed user instruction target is not writable"))).toBe(true);
     expect(await readFile(blockedParent, "utf8")).toBe("not a directory\n");
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("doctor and sync reject a non-file managed instruction path before writing", async () => {
     const repo = await createGitRepo();
@@ -626,7 +611,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await runCli(["sync"], { ...base, out: sync.out, err: sync.err })).toBe(1);
     expect(sync.stderr.some((line) => line.includes("Unsafe managed user instruction target") && line.includes("global.instructions.md"))).toBe(true);
     expect(await readFile(path.join(occupiedPath, "keep.txt"), "utf8")).toBe("keep\n");
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("sync converges instructions when Copilot and VS Code backends are unavailable", async () => {
     const repo = await createGitRepo();
@@ -653,7 +638,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(await readFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "utf8"))
       .toBe("sync without backend\n");
     expect(output.stderr.some((line) => line.includes("plugin convergence could not run"))).toBe(true);
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("status and doctor report an unsafe managed target boundary", async ({ skip }) => {
     const repo = await createGitRepo();
@@ -690,7 +675,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const doctor = capture();
     expect(await runCli(["doctor"], { ...base, out: doctor.out, err: doctor.err })).toBe(1);
     expect(doctor.stdout.some((line) => line.includes("Marketplace user instructions could not be read") && line.includes("Unsafe managed user instruction target"))).toBe(true);
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("doctor reports unsafe or unreadable instruction sources without repairing", async () => {
     const repo = await createGitRepo();
@@ -728,7 +713,7 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(1);
     expect(unreadableDoctor.stdout.some((line) => line.includes("Copilot plugin diagnostics failed") && line.includes("Marketplace acquisition failed"))).toBe(true);
     expect(await readFile(targetPath)).toEqual(managedContent);
-  }, 20_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("sync keeps installed instructions when Marketplace acquisition fails", async () => {
     const repo = await createGitRepo();
@@ -750,5 +735,5 @@ describe("CLI integration with fake Copilot executable", () => {
     })).toBe(1);
     expect(await readFile(path.join(home, ".copilot", "instructions", "team-ai", "global.instructions.md"), "utf8")).toBe("keep me\n");
     expect(failingOutput.stderr.some((line) => line.includes("Marketplace acquisition failed"))).toBe(true);
-  }, 15_000);
+  }, CLI_PROCESS_TEST_TIMEOUT);
 });

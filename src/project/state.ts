@@ -9,7 +9,15 @@ export interface ProjectState {
   workspaceRoot: string;
   lastSync: string;
   managedPlugins: string[];
-  productPlugins: string[];
+  projections?: Record<string, ProjectProjection>;
+}
+
+export interface ProjectProjection {
+  workspaceRoot: string;
+  logicalProjects: string[];
+  managedProjectPlugins: string[];
+  instructionRoot: string;
+  contextRoot: string;
 }
 
 export interface PartitionDiagnostic {

@@ -22,8 +22,11 @@ export async function writeGlobalConfig(config: TeamAiConfig, homeDir = os.homed
   const ordered = {
     version: config.version,
     marketplace: config.marketplace,
+    ...(config.marketplaceRevision ? { marketplaceRevision: config.marketplaceRevision } : {}),
     ...(config.role ? { role: config.role } : {}),
     managedPlugins: config.managedPlugins ?? [],
+    managedSkills: config.managedSkills ?? [],
+    managedSkillPaths: config.managedSkillPaths ?? {},
   };
   await atomicWriteText(configPath(homeDir), stringify(ordered));
 }
