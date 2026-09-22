@@ -13,7 +13,7 @@ import { statusCommand } from "./commands/status.js";
 import { syncCommand } from "./commands/sync.js";
 import { tagsListCommand } from "./commands/tags.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 function usage(): string {
   return [

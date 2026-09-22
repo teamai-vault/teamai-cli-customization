@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { access, lstat, mkdir, readdir, readFile, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
-import { atomicWriteFile } from "../utils/fs.js";
+import { atomicWriteFile, pathsEqual } from "../utils/fs.js";
 
 const INSTRUCTION_SUFFIX = ".instructions.md";
 
@@ -314,19 +314,11 @@ function comparePaths(left: string, right: string): number {
 async function isLinkLike(filePath: string, info: { isSymbolicLink(): boolean }): Promise<boolean> {
   if (info.isSymbolicLink()) return true;
   try {
-    return !samePath(filePath, await realpath(filePath));
+    return !pathsEqual(filePath, await realpath(filePath));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
     throw error;
   }
-}
-
-function samePath(left: string, right: string): boolean {
-  const normalizedLeft = path.normalize(path.resolve(left));
-  const normalizedRight = path.normalize(path.resolve(right));
-  return process.platform === "win32"
-    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
-    : normalizedLeft === normalizedRight;
 }
 
 function sourceReadError(filePath: string, error: unknown): Error {

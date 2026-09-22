@@ -37,6 +37,18 @@ real business repository
 
 The CLI has no built-in department Marketplace. `teamai-vault/teamai-marketplace` is the reference/template Marketplace used by this workspace, not a CLI dependency.
 
+## Built-in Agent Skill
+
+The npm package ships a small, self-contained `team-ai` Agent Skill from `skills/team-ai/`. `team-ai init` and `team-ai sync` converge that bundled Skill to:
+
+```text
+~/.copilot/skills/team-ai/
+```
+
+The Skill teaches an Agent how to route Team AI intent through the public CLI and to use current `--help` output for exact syntax. It does not read or depend on a department Marketplace's files or layout. Its shipped version follows the CLI package version.
+
+Ownership is recorded separately under `~/.team-ai/built-in-skills/`. An existing `~/.copilot/skills/team-ai/` without Team AI CLI ownership is treated as a collision and is never silently overwritten. `doctor` reports missing, stale, or colliding built-in Skill state.
+
 ## Requirements
 
 - Node.js 20+

@@ -37,6 +37,18 @@ CLI 与任何具体部门 Marketplace 解耦。每个用户绑定一个 Marketpl
 
 CLI 不内置部门 Marketplace。`teamai-vault/teamai-marketplace` 是本 workspace 使用的 Reference / Template Marketplace，不是 CLI 依赖。
 
+## 内置 Agent Skill
+
+npm package 会随 CLI 一起分发一份很薄、完全自包含的 `team-ai` Agent Skill，source 位于 `skills/team-ai/`。`team-ai init` 和 `team-ai sync` 会将这份 bundled Skill convergence 到：
+
+```text
+~/.copilot/skills/team-ai/
+```
+
+它只帮助 Agent 把 Team AI 相关意图路由到 public CLI，并在需要精确参数时以当前 `--help` 为准；不会读取或依赖任何具体部门 Marketplace 的文件或目录结构。Skill 不维护独立版本，随 CLI package version 一起演进。
+
+ownership 独立记录在 `~/.team-ai/built-in-skills/`。如果 `~/.copilot/skills/team-ai/` 已存在但不属于 Team AI CLI，CLI 会视为 collision 并拒绝 silent overwrite；`doctor` 会报告 missing、stale 或 collision 状态。
+
 ## 环境要求
 
 - Node.js 20+

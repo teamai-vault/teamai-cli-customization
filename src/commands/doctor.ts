@@ -2,6 +2,7 @@ import { access, lstat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { readGlobalConfig } from "../config/global.js";
+import { inspectBuiltInTeamAiSkill } from "../copilot/builtin-skill.js";
 import { enabledUserPlugins, pluginSpec, userPlugins } from "../copilot/plugins.js";
 import { effectiveEnabledPluginSpecs, convergeManagedSkills } from "../copilot/skills.js";
 import { readProjectSettings } from "../copilot/project-settings.js";
@@ -64,6 +65,16 @@ export async function doctorCommand(context: CommandContext): Promise<DoctorResu
   const gitVersion = await executableVersion("git", ["--version"]);
   if (gitVersion) ok(`Git: ${gitVersion}`);
   else fail("Git is not available on PATH.");
+
+  try {
+    const builtInSkill = await inspectBuiltInTeamAiSkill(context.homeDir);
+    if (builtInSkill.status === "current") ok("Built-in Team AI Skill: current (" + builtInSkill.version + ").");
+    else if (builtInSkill.status === "collision") fail("Built-in Team AI Skill collision: " + builtInSkill.reason + ".");
+    else if (builtInSkill.status === "missing") warn("Built-in Team AI Skill: missing. Run team-ai init or team-ai sync.");
+    else warn("Built-in Team AI Skill: stale. Run team-ai sync.");
+  } catch (error) {
+    fail("Built-in Team AI Skill diagnostics failed: " + (error as Error).message);
+  }
 
   let copilotAvailable = true;
   try {

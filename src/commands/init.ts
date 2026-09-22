@@ -1,5 +1,6 @@
 import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
 import { createConfig } from "../config/schema.js";
+import { convergeBuiltInTeamAiSkill } from "../copilot/builtin-skill.js";
 import { normalizeMarketplaceSource, resolveMarketplaceConfig } from "../copilot/marketplace.js";
 import { convergeUserPlugins, enabledUserPlugins } from "../copilot/plugins.js";
 import { convergeMarketplaceUserInstructions } from "../copilot/user-instructions.js";
@@ -46,6 +47,10 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     }
     enabledUserPlugins(role, catalog.plugins, catalog.name);
 
+    const builtInSkill = await convergeBuiltInTeamAiSkill(context.homeDir, { dryRun: context.dryRun });
+    if (builtInSkill.change) {
+      context.out((context.dryRun ? "WOULD" : "DONE") + " " + builtInSkill.change + ": ~/.copilot/skills/team-ai");
+    }
     const userInstructions = await convergeMarketplaceUserInstructions(catalog.root, context.homeDir, { dryRun: context.dryRun });
     if (context.copilotMode === "unavailable") {
       printUserInstructionActions(userInstructions, context.dryRun, context.out);
