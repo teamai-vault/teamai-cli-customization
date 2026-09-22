@@ -1,4 +1,4 @@
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { cp, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 export async function pathExists(filePath: string): Promise<boolean> {
@@ -55,6 +55,30 @@ export async function atomicWriteFile(filePath: string, contents: Uint8Array): P
 
 export async function atomicWriteJson(filePath: string, value: unknown): Promise<void> {
   await atomicWriteText(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+export async function replaceDirectory(source: string, target: string): Promise<void> {
+  const parent = path.dirname(target);
+  const suffix = `${process.pid}.${Date.now()}`;
+  const temporary = path.join(parent, `.${path.basename(target)}.${suffix}.tmp`);
+  const backup = path.join(parent, `.${path.basename(target)}.${suffix}.bak`);
+  await mkdir(parent, { recursive: true });
+  await cp(source, temporary, { recursive: true, errorOnExist: true, verbatimSymlinks: true });
+  let hadTarget = false;
+  try {
+    await rename(target, backup);
+    hadTarget = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  try {
+    await rename(temporary, target);
+    if (hadTarget) await rm(backup, { recursive: true, force: true });
+  } catch (error) {
+    if (hadTarget) await rename(backup, target);
+    await rm(temporary, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 export async function withFileLock<T>(lockPath: string, action: () => Promise<T>): Promise<T> {

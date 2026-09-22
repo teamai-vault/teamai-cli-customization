@@ -7,6 +7,7 @@ describe("global config", () => {
   test("reads and writes config.yaml", async () => {
     const home = await tempDir("team-ai-home-");
     const config = createConfig({ name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE });
+    config.marketplaceRevision = "0123456789abcdef";
     config.role = "api";
     config.managedPlugins = [`common@${TEST_MARKETPLACE_NAME}`, `api@${TEST_MARKETPLACE_NAME}`];
     await writeGlobalConfig(config, home);

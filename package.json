@@ -14,9 +14,9 @@
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:unit": "vitest run test/unit",
-    "test:integration": "vitest run test/integration",
+    "test": "vitest run --no-file-parallelism",
+    "test:unit": "vitest run test/unit --no-file-parallelism",
+    "test:integration": "vitest run test/integration --no-file-parallelism",
     "test:e2e:copilot": "node scripts/smoke-team-ai.mjs",
     "test:e2e:fallback": "node scripts/smoke-fallback.mjs",
     "rename:marketplace": "node scripts/rename-marketplace.mjs"

@@ -39,12 +39,9 @@ export async function convergeUserPlugins(
   client: CopilotOperations,
   config: TeamAiConfig,
   catalog: CatalogPlugin[],
-  options: { dryRun?: boolean; cwd?: string; requiredCatalogPlugin?: string } = {},
+  options: { dryRun?: boolean; cwd?: string } = {},
 ): Promise<ConvergeResult> {
   if (!config.role) throw new Error("No Team AI role is configured. Run `team-ai init` first.");
-  if (options.requiredCatalogPlugin && !catalog.some((item) => item.name === options.requiredCatalogPlugin && item.kind === "product")) {
-    throw new Error(`Product plugin ${options.requiredCatalogPlugin}@${config.marketplace.name} is not present in the Marketplace.`);
-  }
 
   const actions: PlannedAction[] = [];
   const warnings: string[] = [];

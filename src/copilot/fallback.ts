@@ -1,6 +1,7 @@
-import { cp, mkdir, readFile, readdir, realpath, rename, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import { loadMarketplaceCatalog, type MarketplaceCatalog } from "./catalog.js";
+import { replaceDirectory } from "../utils/fs.js";
+import { loadMarketplaceCatalog, type MarketplaceCatalog, type MarketplaceLoadOptions } from "./catalog.js";
 import type { CopilotOperations, InstalledPlugin, MarketplacePluginRow, MarketplaceRow, NativeMcpServer } from "./cli.js";
 import {
   installedPluginsRoot,
@@ -13,11 +14,18 @@ import {
 } from "./user-state.js";
 
 export class FallbackCopilotClient implements CopilotOperations {
+  private readonly loadMarketplace: (source: string, cwd: string, options?: MarketplaceLoadOptions) => Promise<MarketplaceCatalog>;
+
   constructor(
     private readonly homeDir: string,
     private readonly now: () => Date,
-    private readonly loadMarketplace = loadMarketplaceCatalog,
-  ) {}
+    loadMarketplace?: (source: string, cwd: string, options?: MarketplaceLoadOptions) => Promise<MarketplaceCatalog>,
+  ) {
+    this.loadMarketplace = loadMarketplace ?? ((source, cwd, options) => loadMarketplaceCatalog(source, cwd, {
+      ...options,
+      homeDir: this.homeDir,
+    }));
+  }
 
   async version(): Promise<string> {
     return "VS Code-compatible fallback";
@@ -162,30 +170,6 @@ async function installTarget(root: string, marketplace: string, plugin: string):
 function isOutside(root: string, target: string): boolean {
   const relative = path.relative(root, target);
   return relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative);
-}
-
-async function replaceDirectory(source: string, target: string): Promise<void> {
-  const parent = path.dirname(target);
-  const suffix = `${process.pid}.${Date.now()}`;
-  const temporary = path.join(parent, `.${path.basename(target)}.${suffix}.tmp`);
-  const backup = path.join(parent, `.${path.basename(target)}.${suffix}.bak`);
-  await mkdir(parent, { recursive: true });
-  await cp(source, temporary, { recursive: true, errorOnExist: true });
-  let hadTarget = false;
-  try {
-    await rename(target, backup);
-    hadTarget = true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  try {
-    await rename(temporary, target);
-    if (hadTarget) await rm(backup, { recursive: true, force: true });
-  } catch (error) {
-    if (hadTarget) await rename(backup, target);
-    await rm(temporary, { recursive: true, force: true });
-    throw error;
-  }
 }
 
 async function discoverMaterializedPlugins(root: string): Promise<InstalledPlugin[]> {

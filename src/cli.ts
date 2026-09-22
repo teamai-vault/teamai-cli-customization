@@ -4,9 +4,14 @@ import { fileURLToPath } from "node:url";
 import { createCommandContext, resolveCopilotBackend, type CommandContext } from "./commands/context.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
+import { learningShareCommand } from "./commands/learning.js";
+import { projectsListCommand, projectsSetCommand } from "./commands/projects.js";
 import { roleListCommand, roleSetCommand } from "./commands/role.js";
+import { skillInstallCommand, skillListCommand, skillRemoveCommand, skillShowCommand } from "./commands/skill.js";
+import { skillContributeCommand } from "./commands/skill-contribute.js";
 import { statusCommand } from "./commands/status.js";
 import { syncCommand } from "./commands/sync.js";
+import { tagsListCommand } from "./commands/tags.js";
 
 const VERSION = "0.2.0";
 
@@ -15,10 +20,19 @@ function usage(): string {
     "team-ai <command> [options]",
     "",
     "Commands:",
-    "  init [--marketplace <source>] [--role api|ios|aos|qa|design] [--product <name>]",
+    "  init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]",
+    "  projects [list|set <ids...>]",
+    "  learning share <file> [--project <id>|--shared] [--tags <tag...>]",
     "  sync",
     "  role list",
     "  role set <role>",
+    "  skill list [--tag <tag>] [--owner <owner>] [--source plugin|standalone]",
+    "  skill show <name>",
+    "  skill install <name...> [--yes]",
+    "  skill install --tag <tag> [--yes]",
+    "  skill remove <name...>",
+    "  skill contribute <path> --owner <owner> [--tags <tag...>] --target standalone|plugin [--plugin <plugin>]",
+    "  tags list",
     "  status",
     "  doctor",
     "",
@@ -37,6 +51,27 @@ function optionValue(args: string[], name: string): string | undefined {
   return value;
 }
 
+function optionValues(args: string[], name: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== name) continue;
+    const value = args[index + 1];
+    if (!value || value.startsWith("--")) throw new Error(`${name} requires a value.`);
+    values.push(value);
+    index += 1;
+  }
+  return values;
+}
+
+function trailingOptionValues(args: string[], name: string): string[] {
+  const index = args.indexOf(name);
+  if (index < 0) return [];
+  const values: string[] = [];
+  for (let cursor = index + 1; cursor < args.length && !args[cursor].startsWith("--"); cursor += 1) values.push(args[cursor]);
+  if (values.length === 0) throw new Error(`${name} requires a value.`);
+  return values;
+}
+
 export async function runCli(argv: string[], overrides: Partial<CommandContext> = {}): Promise<number> {
   const dryRun = argv.includes("--dry-run");
   const args = argv.filter((arg) => arg !== "--dry-run");
@@ -52,14 +87,20 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
   }
 
   try {
+    if (args.includes("--product") || args.some((arg) => arg.startsWith("--product="))) {
+      throw new Error("--product has been removed. Use --project <id>.");
+    }
     await resolveCopilotBackend(context);
     switch (args[0]) {
       case "init":
+        {
+          const projects = optionValues(args, "--project");
         await initCommand(context, {
           marketplace: optionValue(args, "--marketplace"),
           role: optionValue(args, "--role"),
-          product: optionValue(args, "--product"),
+          projects: projects.length > 0 ? projects : undefined,
         });
+        }
         return 0;
       case "sync":
         await syncCommand(context);
@@ -74,6 +115,72 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
           return 0;
         }
         throw new Error("Use `team-ai role list` or `team-ai role set <role>`. ");
+      case "projects":
+        if (args.length === 1 || args[1] === "list") {
+          await projectsListCommand(context);
+          return 0;
+        }
+        if (args[1] === "set") {
+          await projectsSetCommand(context, args.slice(2));
+          return 0;
+        }
+        throw new Error("Use `team-ai projects [list]` or `team-ai projects set <ids...>`. ");
+      case "skill":
+        if (args[1] === "list") {
+          await skillListCommand(context, { tag: optionValue(args, "--tag"), owner: optionValue(args, "--owner"), source: optionValue(args, "--source") });
+          return 0;
+        }
+        if (args[1] === "show" && args[2]) {
+          await skillShowCommand(context, args[2]);
+          return 0;
+        }
+        if (args[1] === "install") {
+          const tag = optionValue(args, "--tag");
+          const names = args.slice(2).filter((arg, index, values) => arg !== "--tag" && arg !== "--yes" && values[index - 1] !== "--tag");
+          await skillInstallCommand(context, names, tag, args.includes("--yes"));
+          return 0;
+        }
+        if (args[1] === "remove") {
+          await skillRemoveCommand(context, args.slice(2));
+          return 0;
+        }
+        if (args[1] === "contribute" && args[2] && !args[2].startsWith("--")) {
+          const owners = optionValues(args, "--owner");
+          const targets = optionValues(args, "--target");
+          const plugins = optionValues(args, "--plugin");
+          if (owners.length !== 1 || targets.length !== 1 || plugins.length > 1) {
+            throw new Error("skill contribute requires one --owner and one --target; --plugin may be supplied once.");
+          }
+          if (targets[0] !== "standalone" && targets[0] !== "plugin") throw new Error("--target must be standalone or plugin.");
+          await skillContributeCommand(context, {
+            path: args[2],
+            owner: owners[0],
+            tags: trailingOptionValues(args, "--tags"),
+            target: targets[0],
+            plugin: plugins[0],
+          });
+          return 0;
+        }
+        throw new Error("Use `team-ai skill list`, `show`, `install`, `remove`, or `contribute`.");
+      case "tags":
+        if (args[1] === "list") {
+          await tagsListCommand(context);
+          return 0;
+        }
+        throw new Error("Use `team-ai tags list`.");
+      case "learning":
+        if (args[1] === "share" && args[2] && !args[2].startsWith("--")) {
+          const projects = optionValues(args, "--project");
+          if (projects.length > 1) throw new Error("--project may be supplied once.");
+          await learningShareCommand(context, {
+            file: args[2],
+            project: projects[0],
+            shared: args.includes("--shared"),
+            tags: trailingOptionValues(args, "--tags"),
+          });
+          return 0;
+        }
+        throw new Error("Use `team-ai learning share <file> [--project <id>|--shared] [--tags <tag...>]`.");
       case "status":
         await statusCommand(context);
         return 0;

@@ -7,7 +7,7 @@ import { printActions, printWarnings } from "./helpers.js";
 export async function roleListCommand(context: CommandContext): Promise<void> {
   const current = await readGlobalConfig(context.homeDir);
   if (!current) throw new Error("Team AI is not initialized. Run `team-ai init` first.");
-  const { catalog, dispose } = await roleCatalog(context, current.marketplace.source, current.marketplace.name, current.managedPlugins ?? []);
+  const { catalog, dispose } = await roleCatalog(context, current.marketplace.source, current.marketplace.name);
   try {
     for (const plugin of catalog.filter((item) => item.kind === "role")) context.out(plugin.name);
   } finally {
@@ -19,7 +19,7 @@ export async function roleSetCommand(context: CommandContext, role: string): Pro
   const current = await readGlobalConfig(context.homeDir);
   if (!current) throw new Error("Team AI is not initialized. Run `team-ai init` first.");
 
-  const { catalog, dispose } = await roleCatalog(context, current.marketplace.source, current.marketplace.name, current.managedPlugins ?? []);
+  const { catalog, dispose } = await roleCatalog(context, current.marketplace.source, current.marketplace.name);
   try {
     enabledUserPlugins(role, catalog, current.marketplace.name);
     const next = { ...current, role };
@@ -42,19 +42,11 @@ async function roleCatalog(
   context: CommandContext,
   source: string,
   marketplaceName: string,
-  managedPlugins: string[],
 ): Promise<{ catalog: CatalogPlugin[]; dispose: () => Promise<void> }> {
-  try {
-    const loaded = await context.loadMarketplace(source, context.cwd);
-    if (loaded.name !== marketplaceName) throw new Error(`Marketplace name changed from '${marketplaceName}' to '${loaded.name}'.`);
-    return { catalog: loaded.plugins, dispose: loaded.dispose };
-  } catch (error) {
-    const suffix = `@${marketplaceName}`;
-    const names = managedPlugins.filter((spec) => spec.endsWith(suffix)).map((spec) => spec.slice(0, -suffix.length));
-    if (!names.includes("common") || names.length < 2) throw error;
-    return {
-      catalog: names.map((name) => ({ name, version: "", kind: name === "common" ? "common" : "role", root: "" })),
-      dispose: async () => undefined,
-    };
+  const loaded = await context.loadMarketplace(source, context.cwd);
+  if (loaded.name !== marketplaceName) {
+    await loaded.dispose();
+    throw new Error(`Marketplace name changed from '${marketplaceName}' to '${loaded.name}'.`);
   }
+  return { catalog: loaded.plugins, dispose: loaded.dispose };
 }
