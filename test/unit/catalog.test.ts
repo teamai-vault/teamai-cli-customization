@@ -178,6 +178,32 @@ describe("Team AI Marketplace catalog", () => {
     await local.dispose();
   }, 30_000);
 
+  test.skipIf(process.platform !== "win32")("clones and refreshes a cache with long checkout paths", async () => {
+    const remote = await createGitRemoteMarketplace();
+    const longPath = path.join("a".repeat(110), "a".repeat(110), "a".repeat(110), "marker.txt");
+    await mkdir(path.join(remote.root, path.dirname(longPath)), { recursive: true });
+    await writeFile(path.join(remote.root, longPath), "v1", "utf8");
+    await git(remote.root, ["config", "core.longpaths", "true"]);
+    await git(remote.root, ["add", longPath]);
+    await git(remote.root, ["commit", "-m", "add long path"]);
+    await git(remote.root, ["push", "origin", "main"]);
+
+    const home = await trackedTempDir("team-ai-catalog-long-path-home-");
+    const initial = await loadMarketplaceCatalog(remote.source, process.cwd(), { homeDir: home, refresh: true });
+    expect(await readFile(path.join(initial.root, longPath), "utf8")).toBe("v1");
+    await expect(runProcess("git", ["config", "--local", "--get", "core.longpaths"], { cwd: initial.root }))
+      .resolves.toMatchObject({ exitCode: 0, stdout: expect.stringContaining("true") });
+    await initial.dispose();
+
+    await writeFile(path.join(remote.root, longPath), "v2", "utf8");
+    await git(remote.root, ["add", longPath]);
+    await git(remote.root, ["commit", "-m", "refresh long path"]);
+    await git(remote.root, ["push", "origin", "main"]);
+    const refreshed = await loadMarketplaceCatalog(remote.source, process.cwd(), { homeDir: home, refresh: true });
+    expect(await readFile(path.join(refreshed.root, longPath), "utf8")).toBe("v2");
+    await refreshed.dispose();
+  }, 30_000);
+
   test("keeps the previous checkout on fetch failure and never persists dry-run acquisition", async () => {
     const remote = await createGitRemoteMarketplace();
     const home = await trackedTempDir("team-ai-catalog-failure-home-");

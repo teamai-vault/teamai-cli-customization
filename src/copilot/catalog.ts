@@ -347,7 +347,7 @@ async function materializeTemporary(
 }
 
 async function cloneMarketplace(url: string, cwd: string, checkout: string, source: string): Promise<void> {
-  const clone = await runProcess("git", ["clone", "--depth", "1", url, checkout], { cwd });
+  const clone = await runProcess("git", ["clone", "-c", "core.longpaths=true", "--depth", "1", url, checkout], { cwd });
   if (clone.exitCode !== 0) {
     throw new Error(`Could not clone Marketplace '${source}': ${clone.stderr.trim() || clone.stdout.trim()}`);
   }
