@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Team AI CLI — 一张图看懂</title>
+<style>
+:root{--bg:#07111f;--panel:#0d1a2b;--text:#eef6ff;--muted:#9fb2c8;--cyan:#59d7ff;--mint:#74f0bd;--violet:#a78bfa;--amber:#ffd166;--line:#29425f}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(circle at 15% 5%,rgba(89,215,255,.12),transparent 30%),radial-gradient(circle at 90% 10%,rgba(167,139,250,.12),transparent 32%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:1180px;margin:auto;padding:34px 22px 80px}.hero{padding:52px 0 40px}.eyebrow{font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);font-size:13px}
+h1{font-size:clamp(44px,8vw,88px);line-height:.98;margin:16px 0 22px;letter-spacing:-.05em}.hero p{font-size:clamp(20px,3vw,30px);max-width:850px;color:var(--muted);line-height:1.45;margin:0}
+.big-rule{margin:46px 0 20px;padding:28px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(135deg,rgba(89,215,255,.08),rgba(167,139,250,.06))}
+.formula{font-size:clamp(28px,5vw,54px);font-weight:900;letter-spacing:-.03em}.formula span{display:inline-block;margin:6px 8px 6px 0}.eq{color:var(--muted)}
+.scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:24px 0 58px}.scope{border:1px solid var(--line);border-radius:26px;padding:28px;background:rgba(13,26,43,.88)}
+.scope h2{font-size:30px;margin:4px 0 12px}.scope p{color:var(--muted);font-size:17px;line-height:1.6;margin:0}.pill{display:inline-flex;padding:7px 11px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.06em;border:1px solid var(--line)}
+.cyan{color:var(--cyan)}.mint{color:var(--mint)}.violet{color:var(--violet)}.amber{color:var(--amber)}
+.flow,.section{margin:64px 0}.flow h2,.section h2{font-size:clamp(32px,5vw,52px);margin:0 0 22px;letter-spacing:-.03em}
+.flow-row{display:grid;grid-template-columns:1fr 80px 1fr 80px 1fr;align-items:stretch;gap:10px}.step{padding:24px;border-radius:24px;background:var(--panel);border:1px solid var(--line);min-height:210px;display:flex;flex-direction:column;justify-content:space-between}
+.step .num{font-size:54px;font-weight:950;opacity:.16}.step h3{font-size:24px;margin:8px 0}.step code,.cmd code{font-family:"SFMono-Regular",Consolas,monospace;font-size:15px}.arrow{display:flex;align-items:center;justify-content:center;font-size:44px;color:var(--line)}
+.callout{margin:30px 0;padding:24px 26px;border-left:5px solid var(--amber);background:rgba(255,209,102,.07);border-radius:18px}.callout strong{color:var(--amber)}
+.sync-map{display:grid;grid-template-columns:1fr 120px 1fr;gap:18px;align-items:center}.planet{border:1px solid var(--line);border-radius:30px;padding:32px;background:var(--panel);min-height:300px}.planet h3{font-size:30px;margin:0 0 18px}.planet ul{padding-left:20px;color:var(--muted);font-size:18px;line-height:1.8}
+.sync-core{width:118px;height:118px;border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:900;font-size:18px;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#07111f;box-shadow:0 0 60px rgba(89,215,255,.22)}.only{margin-top:18px;font-size:15px;color:var(--amber);font-weight:800}
+.commands{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.cmd{padding:20px;border-radius:20px;background:var(--panel);border:1px solid var(--line)}.cmd h3{font-size:20px;margin:8px 0}.cmd p{margin:0;color:var(--muted);line-height:1.5;font-size:14px}.code{display:block;margin-top:14px;padding:12px 13px;border-radius:12px;background:#08121f;color:#d9efff;overflow:auto;white-space:nowrap}
+.story{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.story-card{border:1px solid var(--line);border-radius:24px;background:var(--panel);padding:26px}.story-card h3{font-size:24px;margin:0 0 14px}.story-card pre{margin:14px 0 0;background:#08121f;border-radius:14px;padding:16px;overflow:auto;color:#d8f3ff;line-height:1.6}
+.legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:20px}.legend div{padding:16px;border-radius:16px;background:rgba(18,35,58,.7);border:1px solid var(--line)}.legend b{display:block;font-size:17px;margin-bottom:5px}
+footer{margin-top:80px;padding-top:26px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+@media(max-width:900px){.scope-grid,.story,.commands,.flow-row,.sync-map{grid-template-columns:1fr}.arrow{transform:rotate(90deg);height:42px}.sync-core{margin:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section class="hero">
+<div class="eyebrow">Team AI CLI · Quick Visual Guide</div>
+<h1>先设置“我是谁”<br>再告诉每个 Repo“它是谁”</h1>
+<p>不用记很多概念。先记住 3 个命令：<b>init</b>、<b>projects set</b>、<b>sync</b>。</p>
+</section>
+
+<section class="big-rule">
+<div class="formula"><span class="cyan">init = 我</span><span class="eq">·</span><span class="mint">projects set = 这个 Repo</span><span class="eq">·</span><span class="violet">sync = 更新到最新</span></div>
+</section>
+
+<section class="scope-grid">
+<div class="scope"><div class="pill cyan">USER SCOPE</div><h2>👤 你的机器 / 账号</h2><p><b>Marketplace</b>、<b>Role</b>、用户级 Instructions、CLI 自带 Skill。</p></div>
+<div class="scope"><div class="pill mint">CURRENT REPO</div><h2>📁 当前 Physical Project</h2><p>它绑定哪些 <b>Logical Project</b>，以及对应的业务 Context / Docs / Learnings。</p></div>
+</section>
+
+<section class="flow">
+<h2>第一次使用：3 步就够</h2>
+<div class="flow-row">
+<div class="step"><div><div class="num">01</div><h3>初始化你自己</h3><p class="cyan">User Scope</p></div><code>team-ai init --marketplace &lt;source&gt; --role api</code></div>
+<div class="arrow">→</div>
+<div class="step"><div><div class="num">02</div><h3>进入业务 Repo</h3><p class="mint">Physical Project</p></div><code>cd payment-service</code></div>
+<div class="arrow">→</div>
+<div class="step"><div><div class="num">03</div><h3>绑定业务上下文</h3><p class="mint">Logical Project</p></div><code>team-ai projects set payments</code></div>
+</div>
+<div class="callout"><strong>注意：</strong> `projects set` 会立即把当前 Repo 的 Logical Project context 收敛好，不需要为了绑定再跑一次 `init`。</div>
+</section>
+
+<section class="section">
+<h2>🔄 `sync` 到底做什么？</h2>
+<div class="sync-map">
+<div class="planet"><div class="pill cyan">USER SCOPE</div><h3>更新你的 Team AI 环境</h3><ul><li>刷新 Marketplace</li><li>更新 Plugins</li><li>更新 User Instructions</li><li>更新已安装的 managed Skills</li><li>更新 built-in `team-ai` Skill</li></ul></div>
+<div class="sync-core">team-ai<br>sync</div>
+<div class="planet"><div class="pill mint">CURRENT REPO</div><h3>更新当前 Repo 的业务上下文</h3><ul><li>读取已保存的 Logical Project IDs</li><li>更新 Logical Project Instructions</li><li>更新 Docs / Learnings</li><li>更新 optional Project Plugin</li></ul><div class="only">只更新当前所在 Repo，不会扫全机器所有 Repo。</div></div>
+</div>
+</section>
+
+<section class="section">
+<h2>两个最常见的 `sync` 场景</h2>
+<div class="story">
+<div class="story-card"><div class="pill violet">SCENARIO A</div><h3>团队更新了 Payments 文档</h3><pre>cd payment-service
+
+team-ai sync
+
+# payments docs / instructions
+# 自动更新到当前 repo</pre></div>
+<div class="story-card"><div class="pill violet">SCENARIO B</div><h3>某个已安装 Skill 更新了</h3><pre>team-ai sync
+
+# Standalone managed Skill → 更新
+# Plugin-contained Skill → 随 Plugin 更新</pre></div>
+</div>
+</section>
+
+<section class="section">
+<h2>常用命令，一眼就懂</h2>
+<div class="commands">
+<div class="cmd"><div class="pill cyan">SETUP</div><h3>`init`</h3><p>第一次设置 Marketplace + Role，建立你的 Team AI 用户环境。</p><span class="code">team-ai init --marketplace ... --role api</span></div>
+<div class="cmd"><div class="pill mint">REPO</div><h3>`projects list`</h3><p>看看团队有哪些 Logical Project。</p><span class="code">team-ai projects list</span></div>
+<div class="cmd"><div class="pill mint">REPO</div><h3>`projects set`</h3><p>绑定当前 Repo。一个 Repo 可绑定多个 Logical Project。</p><span class="code">team-ai projects set payments risk</span></div>
+<div class="cmd"><div class="pill violet">REFRESH</div><h3>`sync`</h3><p>刷新 Marketplace，并更新用户能力和当前 Repo 已绑定的业务上下文。</p><span class="code">team-ai sync</span></div>
+<div class="cmd"><div class="pill cyan">ROLE</div><h3>`role list / set`</h3><p>查看或切换你的团队 Role。</p><span class="code">team-ai role set qa</span></div>
+<div class="cmd"><div class="pill amber">CHECK</div><h3>`status`</h3><p>快速查看 Team AI 当前状态。</p><span class="code">team-ai status</span></div>
+<div class="cmd"><div class="pill amber">FIX</div><h3>`doctor`</h3><p>状态不对？检查 missing、stale、collision 等问题。</p><span class="code">team-ai doctor</span></div>
+<div class="cmd"><div class="pill violet">SKILL</div><h3>`skill list`</h3><p>浏览团队 Skill；可按 Tag、Owner、Source 筛选。</p><span class="code">team-ai skill list --tag experimental</span></div>
+<div class="cmd"><div class="pill violet">SKILL</div><h3>`skill show`</h3><p>查看一个 Skill 是做什么的、来自哪里、是否可独立安装。</p><span class="code">team-ai skill show release-helper</span></div>
+<div class="cmd"><div class="pill violet">SKILL</div><h3>`skill install`</h3><p>安装一个或多个可独立使用的 Team Skill。</p><span class="code">team-ai skill install release-helper</span></div>
+<div class="cmd"><div class="pill violet">SKILL</div><h3>`skill remove`</h3><p>移除 Team AI 管理的 personal Skill。</p><span class="code">team-ai skill remove release-helper</span></div>
+<div class="cmd"><div class="pill mint">TAGS</div><h3>`tags list`</h3><p>看看团队当前有哪些 Skill 标签。</p><span class="code">team-ai tags list</span></div>
+<div class="cmd"><div class="pill mint">SHARE</div><h3>`learning share`</h3><p>把排障经验 / 团队经验通过贡献流程分享出去。</p><span class="code">team-ai learning share note.md</span></div>
+</div>
+</section>
+
+
+<section class="section">
+<h2>🧩 Skill：先“找”，再“看”，最后“装”</h2>
+<div class="flow-row">
+<div class="step">
+  <div>
+    <div class="num">01</div>
+    <h3>找 Skill</h3>
+    <p class="violet">List</p>
+  </div>
+  <code>team-ai skill list</code>
+</div>
+<div class="arrow">→</div>
+<div class="step">
+  <div>
+    <div class="num">02</div>
+    <h3>看详情</h3>
+    <p class="violet">Show</p>
+  </div>
+  <code>team-ai skill show release-helper</code>
+</div>
+<div class="arrow">→</div>
+<div class="step">
+  <div>
+    <div class="num">03</div>
+    <h3>安装 / 使用</h3>
+    <p class="violet">Install</p>
+  </div>
+  <code>team-ai skill install release-helper</code>
+</div>
+</div>
+
+<div class="story" style="margin-top:22px">
+<div class="story-card">
+<div class="pill violet">STANDALONE SKILL</div>
+<h3>📦 可以独立安装</h3>
+<p style="color:var(--muted);line-height:1.65">Standalone Skill 是可以单独放进你的个人 Copilot Skills 目录里使用的 Skill。</p>
+<pre>team-ai skill list --source standalone
+
+team-ai skill show release-helper
+
+team-ai skill install release-helper
+
+# 以后团队更新了它
+team-ai sync
+
+# 不想用了
+team-ai skill remove release-helper</pre>
+</div>
+
+<div class="story-card">
+<div class="pill cyan">PLUGIN-CONTAINED SKILL</div>
+<h3>🧱 通常随 Plugin 使用</h3>
+<p style="color:var(--muted);line-height:1.65">有些 Skill 属于某个 Plugin。Plugin 启用时，Skill 直接随 Plugin 提供，不需要再复制一份。</p>
+<pre># 先看它来自哪里
+team-ai skill show java-review
+
+# Plugin 已启用
+# → Skill 直接由 Plugin 提供
+
+# 如果它明确允许 standalone
+# 且 Plugin 当前未启用
+team-ai skill install java-review</pre>
+</div>
+</div>
+
+<div class="callout"><strong>`skill show` 很重要：</strong>不知道某个 Skill 能不能单独装？先 `show`。它会帮助你看懂 Skill 的来源、Owner、Tag、是否 Standalone，以及当前状态。</div>
+</section>
+
+<section class="section">
+<h2>🔎 `skill list`：像浏览一个团队能力目录</h2>
+<div class="story">
+<div class="story-card">
+<h3>看看全部</h3>
+<pre>team-ai skill list</pre>
+<p style="color:var(--muted)">适合第一次使用，先知道团队到底提供了什么。</p>
+</div>
+<div class="story-card">
+<h3>只看 Standalone</h3>
+<pre>team-ai skill list --source standalone</pre>
+<p style="color:var(--muted)">想找“可以直接装到自己环境里”的 Skill 时最有用。</p>
+</div>
+<div class="story-card">
+<h3>按 Tag 找</h3>
+<pre>team-ai skill list --tag experimental</pre>
+<p style="color:var(--muted)">想找某一类能力，例如 experimental、java、release。</p>
+</div>
+<div class="story-card">
+<h3>按 Owner 找</h3>
+<pre>team-ai skill list --owner api-team</pre>
+<p style="color:var(--muted)">想看某个团队负责维护哪些 Skill。</p>
+</div>
+</div>
+</section>
+
+<section class="section">
+<h2>🏷️ Tag：分类和批量选择，不是订阅</h2>
+
+<div class="big-rule" style="margin-top:0">
+<div class="formula" style="font-size:clamp(24px,4vw,44px)">
+<span class="mint">Tag = 现在帮我筛选</span>
+<span class="eq">≠</span>
+<span class="amber">以后自动跟踪</span>
+</div>
+</div>
+
+<div class="flow-row">
+<div class="step">
+  <div>
+    <div class="num">01</div>
+    <h3>看看有哪些 Tag</h3>
+  </div>
+  <code>team-ai tags list</code>
+</div>
+<div class="arrow">→</div>
+<div class="step">
+  <div>
+    <div class="num">02</div>
+    <h3>用 Tag 找 Skill</h3>
+  </div>
+  <code>team-ai skill list --tag experimental</code>
+</div>
+<div class="arrow">→</div>
+<div class="step">
+  <div>
+    <div class="num">03</div>
+    <h3>按 Tag 批量安装</h3>
+  </div>
+  <code>team-ai skill install --tag experimental</code>
+</div>
+</div>
+
+<div class="story" style="margin-top:22px">
+<div class="story-card">
+<div class="pill mint">TODAY</div>
+<h3>今天 experimental 有 A / B / C</h3>
+<pre>team-ai skill install --tag experimental
+
+# 实际记录的是：
+A
+B
+C</pre>
+</div>
+<div class="story-card">
+<div class="pill amber">LATER</div>
+<h3>后来新增 D</h3>
+<pre># D 也有 experimental tag
+
+team-ai sync
+
+# 不会自动安装 D</pre>
+</div>
+</div>
+
+<div class="callout"><strong>为什么？</strong> Tag 是“一次性选择器”。安装时 Team AI 会把当时匹配的 Skill 名称保存成明确的 desired state。以后要把新加入这个 Tag 的 Skill 也装进来，再执行一次 `skill install --tag ...`。</div>
+
+<div class="scope-grid" style="margin-top:24px;margin-bottom:0">
+<div class="scope">
+<div class="pill mint">USER</div>
+<h2>我能怎么用 Tag？</h2>
+<p>列出 Tag、筛选 Skill、按 Tag 批量选择安装。</p>
+</div>
+<div class="scope">
+<div class="pill cyan">TEAM MAINTAINER</div>
+<h2>谁维护 Tag？</h2>
+<p>Tag 属于团队 Marketplace 的 Skill metadata，由团队维护者统一维护。普通用户不需要手工改 metadata。</p>
+</div>
+</div>
+</section>
+
+<section class="section">
+<h2>🪪 `skill show`：安装前先看身份证</h2>
+<div class="scope-grid">
+<div class="scope">
+<div class="pill violet">WHAT</div>
+<h2>它是干什么的？</h2>
+<p>先看 Skill description，确认它解决的问题是不是你现在需要的。</p>
+</div>
+<div class="scope">
+<div class="pill violet">WHERE</div>
+<h2>它从哪里来？</h2>
+<p>Standalone，还是某个 Plugin 里的 Skill？</p>
+</div>
+<div class="scope">
+<div class="pill violet">WHO</div>
+<h2>谁负责？</h2>
+<p>看 Owner，知道维护责任在哪里。</p>
+</div>
+<div class="scope">
+<div class="pill violet">HOW</div>
+<h2>能不能单独装？</h2>
+<p>看 standalone 状态；Plugin-contained Skill 是否能独立安装，由 Team AI metadata 决定。</p>
+</div>
+</div>
+<div class="story-card">
+<pre>team-ai skill show release-helper
+
+# 看清楚再决定：
+team-ai skill install release-helper</pre>
+</div>
+</section>
+
+<section class="section">
+<h2>3 个最重要的使用边界</h2>
+<div class="legend">
+<div><b>📌 `init` = 用户设置</b><span>配置 Marketplace、Role 和用户级能力。</span></div>
+<div><b>📁 `projects set` = Repo 设置</b><span>告诉 Team AI 当前 Repo 属于哪些 Logical Project。</span></div>
+<div><b>🔄 `sync` = 更新</b><span>刷新团队能力，并更新当前 Repo 已绑定的上下文。</span></div>
+</div>
+</section>
+
+<section class="section">
+<h2>一个完整例子</h2>
+<div class="story-card"><div class="pill cyan">DAY 1</div><pre># 只做一次：设置用户环境
+team-ai init --marketplace company/teamai-marketplace --role api
+
+# 进入支付服务
+cd payment-service
+
+# 看有哪些业务上下文
+team-ai projects list
+
+# 当前 repo 属于 Payments
+team-ai projects set payments</pre></div>
+
+<div class="story-card" style="margin-top:18px"><div class="pill violet">DAY 30</div><pre># 团队更新了 payments docs / learning / plugin / skills
+cd payment-service
+team-ai sync
+
+# 想知道现在状态
+team-ai status
+
+# 感觉哪里不对
+team-ai doctor</pre></div>
+</section>
+
+<footer><b>Team AI CLI</b> · Set once, sync often.</footer>
+</div>
+</body>
+</html>
