@@ -1,10 +1,10 @@
-import { lstat, readdir, readFile, rm } from "node:fs/promises";
+import { lstat, rm } from "node:fs/promises";
 import path from "node:path";
 import type { TeamAiConfig } from "../config/schema.js";
 import type { CatalogSkill } from "./catalog.js";
 import type { InstalledPlugin } from "./cli.js";
 import type { ProjectSettings } from "./project-settings.js";
-import { replaceDirectory, withFileLock } from "../utils/fs.js";
+import { directoriesEqual, pathsEqual, replaceDirectory, withFileLock } from "../utils/fs.js";
 
 export interface ManagedSkillChange {
   type: "create" | "update" | "remove" | "available-via-plugin";
@@ -58,7 +58,7 @@ export async function convergeManagedSkills(
   const action = async () => {
     for (const [name, record] of Object.entries(records)) {
       const target = personalSkillPath(homeDir, name);
-      if (!samePath(record, target)) throw new Error(`Managed skill '${name}' has an unsafe ownership record.`);
+      if (!pathsEqual(record, target)) throw new Error(`Managed skill '${name}' has an unsafe ownership record.`);
       const skill = catalog.get(name);
       if (!desired.includes(name) || !skill || available.has(name)) {
         if (await pathExists(target)) changes.push({ type: "remove", name });
@@ -75,7 +75,7 @@ export async function convergeManagedSkills(
       if (await pathExists(target) && !owned) {
         throw new Error(`Personal skill '${name}' already exists and is not managed by Team AI.`);
       }
-      const current = owned && await sameDirectory(skill.root, target);
+      const current = owned && await directoriesEqual(skill.root, target);
       if (!current) changes.push({ type: owned ? "update" : "create", name });
       if (!options.dryRun) {
         if (!current) await replaceDirectory(skill.root, target);
@@ -97,39 +97,4 @@ async function pathExists(target: string): Promise<boolean> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
     throw error;
   }
-}
-
-async function sameDirectory(source: string, target: string): Promise<boolean> {
-  try {
-    const [sourceInfo, targetInfo] = await Promise.all([lstat(source), lstat(target)]);
-    if (!sourceInfo.isDirectory() || !targetInfo.isDirectory() || sourceInfo.isSymbolicLink() || targetInfo.isSymbolicLink()) return false;
-    const [sourceEntries, targetEntries] = await Promise.all([readdir(source, { withFileTypes: true }), readdir(target, { withFileTypes: true })]);
-    if (sourceEntries.length !== targetEntries.length) return false;
-    const targetByName = new Map(targetEntries.map((entry) => [entry.name, entry]));
-    for (const sourceEntry of sourceEntries) {
-      const targetEntry = targetByName.get(sourceEntry.name);
-      if (!targetEntry || sourceEntry.isDirectory() !== targetEntry.isDirectory() || sourceEntry.isFile() !== targetEntry.isFile()) return false;
-      const sourcePath = path.join(source, sourceEntry.name);
-      const targetPath = path.join(target, targetEntry.name);
-      if (sourceEntry.isDirectory()) {
-        if (!await sameDirectory(sourcePath, targetPath)) return false;
-      } else if (sourceEntry.isFile()) {
-        if (!(await readFile(sourcePath)).equals(await readFile(targetPath))) return false;
-      } else {
-        return false;
-      }
-    }
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
-}
-
-function samePath(left: string, right: string): boolean {
-  const normalizedLeft = path.resolve(left);
-  const normalizedRight = path.resolve(right);
-  return process.platform === "win32"
-    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
-    : normalizedLeft === normalizedRight;
 }

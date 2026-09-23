@@ -11,7 +11,9 @@ import { fileURLToPath } from "node:url";
 
 const exec = promisify(execFile);
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const marketplaceRoot = path.resolve(cliRoot, "..", "teamai-marketplace");
+const marketplaceRoot = process.env.TEAM_AI_E2E_MARKETPLACE_ROOT
+  ? path.resolve(process.env.TEAM_AI_E2E_MARKETPLACE_ROOT)
+  : path.resolve(cliRoot, "..", "teamai-marketplace");
 let runRoot;
 
 async function run(command, args, options) {
@@ -26,6 +28,11 @@ async function runCopilot(args, options) {
   return process.platform === "win32"
     ? await run(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "copilot", ...args], options)
     : await run("copilot", args, options);
+}
+
+function normalizedPath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 async function resolveRealCode(env) {
@@ -106,6 +113,10 @@ try {
   for (const name of ["common", "api", "ios", "aos", "qa", "design"]) {
     assert.ok(nativePlugins.some((plugin) => plugin.name === name), `native Copilot should recognize ${name}@teamai`);
   }
+  const nativeSkills = JSON.parse((await runCopilot(["skill", "list", "--json"], { cwd: repository, env: nativeEnv })).stdout);
+  const builtInSkill = nativeSkills.find((skill) => skill.name === "team-ai" && skill.source === "personal-copilot");
+  assert.ok(builtInSkill, "native Copilot should recognize the built-in Team AI Skill");
+  assert.equal(normalizedPath(builtInSkill.path), normalizedPath(path.join(profile, ".copilot", "skills", "team-ai")));
 
   console.log(`Fallback materialization and native Copilot recognition passed on ${process.platform}.`);
 } finally {

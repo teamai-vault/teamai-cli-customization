@@ -1,4 +1,4 @@
-import { cp, mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, open, readFile, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 export async function pathExists(filePath: string): Promise<boolean> {
@@ -79,6 +79,53 @@ export async function replaceDirectory(source: string, target: string): Promise<
     await rm(temporary, { recursive: true, force: true });
     throw error;
   }
+}
+
+export async function directoriesEqual(source: string, target: string): Promise<boolean> {
+  try {
+    const [sourceInfo, targetInfo] = await Promise.all([lstat(source), lstat(target)]);
+    if (!sourceInfo.isDirectory() || !targetInfo.isDirectory() || sourceInfo.isSymbolicLink() || targetInfo.isSymbolicLink()) {
+      return false;
+    }
+    const [sourceEntries, targetEntries] = await Promise.all([
+      readdir(source, { withFileTypes: true }),
+      readdir(target, { withFileTypes: true }),
+    ]);
+    if (sourceEntries.length !== targetEntries.length) return false;
+    const targetByName = new Map(targetEntries.map((entry) => [entry.name, entry]));
+    for (const sourceEntry of sourceEntries) {
+      const targetEntry = targetByName.get(sourceEntry.name);
+      if (!targetEntry || sourceEntry.isDirectory() !== targetEntry.isDirectory() || sourceEntry.isFile() !== targetEntry.isFile()) {
+        return false;
+      }
+      const sourcePath = path.join(source, sourceEntry.name);
+      const targetPath = path.join(target, targetEntry.name);
+      if (sourceEntry.isDirectory()) {
+        if (!await directoriesEqual(sourcePath, targetPath)) return false;
+      } else if (sourceEntry.isFile()) {
+        if (!(await readFile(sourcePath)).equals(await readFile(targetPath))) return false;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+export function pathsEqual(
+  left: string,
+  right: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const normalizedLeft = pathApi.resolve(left);
+  const normalizedRight = pathApi.resolve(right);
+  return platform === "win32"
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight;
 }
 
 export async function withFileLock<T>(lockPath: string, action: () => Promise<T>): Promise<T> {

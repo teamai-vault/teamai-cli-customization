@@ -10,6 +10,8 @@ The CLI version must match in `package.json`, `package-lock.json`, and `team-ai 
 - Minor: backward-compatible command or capability.
 - Patch: backward-compatible fix or internal hardening.
 
+The bundled `skills/team-ai/` Agent Skill has no independent release version. It is part of the CLI package and uses the CLI package version in its ownership record. After a CLI upgrade, the next `team-ai init` or `team-ai sync` converges the installed built-in Skill to the bundled content.
+
 ## Marketplace
 
 The Marketplace metadata version describes the catalog as a whole.

@@ -37,6 +37,18 @@ real business repository
 
 The CLI has no built-in department Marketplace. `teamai-vault/teamai-marketplace` is the reference/template Marketplace used by this workspace, not a CLI dependency.
 
+## Built-in Agent Skill
+
+The npm package ships a small, self-contained `team-ai` Agent Skill from `skills/team-ai/`. `team-ai init` and `team-ai sync` converge that bundled Skill to:
+
+```text
+~/.copilot/skills/team-ai/
+```
+
+The Skill teaches an Agent how to route Team AI intent through the public CLI and to use current `--help` output for exact syntax. It does not read or depend on a department Marketplace's files or layout. Its shipped version follows the CLI package version.
+
+Ownership is recorded separately under `~/.team-ai/built-in-skills/`. An existing `~/.copilot/skills/team-ai/` without Team AI CLI ownership is treated as a collision and is never silently overwritten. `doctor` reports missing, stale, or colliding built-in Skill state.
+
 ## Requirements
 
 - Node.js 20+
@@ -83,7 +95,7 @@ The plugin name does not encode its kind. The CLI reads the shared metadata name
 
 ## Logical Project context and learnings
 
-`team-ai init --project <id>` accepts repeated or comma-separated IDs. `team-ai projects list` reads the catalog; `team-ai projects set <ids...>` changes the current physical Git workspace binding. The concrete convergence used by `init`, `projects set`, and `sync` has four scopes: Marketplace Plugin packages, managed user instructions, physical-repository Logical Project instructions, and physical-repository context/learning files.
+`team-ai init` configures only user scope and never binds Logical Projects. `team-ai projects list` reads the catalog; `team-ai projects set <ids...>` (repeated or comma-separated IDs) is the only command that changes the current physical Git workspace binding, and `sync` re-converges the saved binding of the current workspace only. Convergence has four scopes: Marketplace Plugin packages and managed user instructions (`init`, `sync`), plus physical-repository Logical Project instructions and physical-repository context/learning files (`projects set`, `sync`).
 
 Active Project instruction files are mirrored byte-for-byte to `.github/instructions/team-ai/<id>/`; project docs and project/shared learnings go to `.team-ai/context/`. Team AI writes one `context.instructions.md` pointer with `applyTo: "**"`, plus Git-resolved `info/exclude` entries for only those two reserved roots. It never adopts an occupied reserved path, even if empty, and never rewrites Marketplace source frontmatter. Portable or path-specific `applyTo` matching remains a documented future validation item; no runtime instruction injection is claimed.
 
@@ -152,7 +164,7 @@ The config schema is version `1` and uses `marketplace.source` as its only sourc
 ## Commands
 
 ```text
-team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design]
 team-ai projects [list]
 team-ai projects set <ids...>
 team-ai learning share <file> [--project <id>|--shared] [--tags <tag...>]
@@ -278,4 +290,3 @@ This project does not implement a default Marketplace, multiple-Marketplace merg
 - [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) — current frozen-delta implementation plan and status.
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — current implementation state and validation evidence.
 - [`docs/VERSIONING.md`](docs/VERSIONING.md) — CLI, Marketplace, and Plugin release/version rules.
-- [`docs/codex-first-review.md`](docs/codex-first-review.md) — implementation review findings and dispositions.

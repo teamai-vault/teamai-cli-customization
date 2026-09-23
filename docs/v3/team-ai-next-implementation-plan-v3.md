@@ -311,7 +311,9 @@ team-ai projects set <ids...>
 4. 支持 `--dry-run`；
 5. set 后直接 converge 当前 project context，避免再手工 `sync`。
 
-## `init --project`
+## `init --project`（已移除）
+
+> 后续修订：`init --project` 已移除。`init` 只负责 User Scope；`team-ai projects set <ids...>` 是唯一 Logical Project binding 入口；`init --project` 会直接报错。
 
 现有：
 

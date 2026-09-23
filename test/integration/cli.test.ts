@@ -51,7 +51,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const output = capture();
     expect(await runCli(["init", "--product=payments"], { cwd: repo, out: output.out, err: output.err })).toBe(1);
-    expect(output.stderr).toContain("ERROR: --product has been removed. Use --project <id>.");
+    expect(output.stderr.join("\n")).toContain("ERROR: --product has been removed.\nUse `team-ai projects set <ids...>` inside the target Git repository.");
   }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("init converges instructions when Copilot and VS Code backends are unavailable", async () => {
@@ -154,8 +154,9 @@ describe("CLI integration with fake Copilot executable", () => {
 
     const identity = await detectProjectIdentity(repo);
     const statePath = path.join(partitionPath(identity!.projectAnchor, home), "state.json");
-    const state = JSON.parse(await readFile(statePath, "utf8"));
-    expect(state.workspaceRoot.toLowerCase()).toBe(repo.toLowerCase());
+    await expect(readFile(statePath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(path.join(repo, ".team-ai", "context"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 
     const repeat = capture();
     expect(await runCli(["init"], { ...base, out: repeat.out, err: repeat.err })).toBe(0);
@@ -331,7 +332,7 @@ describe("CLI integration with fake Copilot executable", () => {
     expect(output.stdout.filter((line) => line.includes("plugin-install")).length).toBe(6);
   }, CLI_PROCESS_TEST_TIMEOUT);
 
-  test("binds comma-separated Logical Projects during init and removes only owned plugins when switched", async () => {
+  test("binds Logical Projects only through projects set and removes only owned plugins when switched", async () => {
     const repo = await createGitRepo();
     const home = await tempDir("team-ai-logical-project-home-");
     const marketplace = await tempDir("team-ai-logical-project-marketplace-");
@@ -347,19 +348,39 @@ describe("CLI integration with fake Copilot executable", () => {
     const fake = await createFakeCopilot();
     const output = capture();
 
-    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--project", "payments", "--project", "risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    const rejected = capture();
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api", "--project", "payments"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: rejected.out, err: rejected.err })).toBe(1);
+    expect(rejected.stderr.join("\n")).toContain("--project is not supported by init.\nUse `team-ai projects set <ids...>` inside the target Git repository.");
+    expect(await readGlobalConfig(home)).toBeUndefined();
+
+    expect(await runCli(["init", "--marketplace", TEST_MARKETPLACE_SOURCE, "--role", "api"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    await expect(readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    expect(await runCli(["projects", "set", "payments,risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
     await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).resolves.toContain("applyTo: \"**\"");
     await expect(readFile(path.join(repo, ".team-ai", "context", "risk", "docs", "risk.md"), "utf8")).resolves.toBe("risk\n");
     const settings = JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8"));
     expect(settings.enabledPlugins[`payments@${TEST_MARKETPLACE_NAME}`]).toBe(true);
 
+    const otherRepo = await createGitRepo();
+    expect(await runCli(["projects", "set", "risk"], { cwd: otherRepo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    const otherIdentity = await detectProjectIdentity(otherRepo);
+    const otherStatePath = path.join(partitionPath(otherIdentity!.projectAnchor, home), "state.json");
+    const otherState = await readFile(otherStatePath, "utf8");
+
+    await writeFile(path.join(marketplace, "contexts", "payments", "instructions", "payments.instructions.md"), "---\napplyTo: \"**\"\n---\n\npayments v2\n", "utf8");
+    expect(await runCli(["sync"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
+    await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).resolves.toContain("payments v2");
+    await expect(readFile(path.join(repo, ".team-ai", "context", "risk", "docs", "risk.md"), "utf8")).resolves.toBe("risk\n");
+    await expect(readFile(otherStatePath, "utf8")).resolves.toBe(otherState);
+    await expect(readFile(path.join(otherRepo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
     expect(await runCli(["init"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
-    await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).resolves.toContain("payments");
     const listed = capture();
     expect(await runCli(["projects"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: listed.out, err: listed.err })).toBe(0);
     expect(listed.stdout.some((line) => line.startsWith("* payments"))).toBe(true);
+    expect(listed.stdout.some((line) => line.startsWith("* risk"))).toBe(true);
 
-    expect(await runCli(["projects", "set", "payments,risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
     expect(await runCli(["projects", "set", "risk"], { cwd: repo, homeDir: home, copilot: fake.client, loadMarketplace, out: output.out, err: output.err })).toBe(0);
     await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect(JSON.parse(await readFile(path.join(repo, ".github", "copilot", "settings.json"), "utf8")).enabledPlugins[`payments@${TEST_MARKETPLACE_NAME}`]).toBeUndefined();

@@ -37,6 +37,18 @@ CLI 与任何具体部门 Marketplace 解耦。每个用户绑定一个 Marketpl
 
 CLI 不内置部门 Marketplace。`teamai-vault/teamai-marketplace` 是本 workspace 使用的 Reference / Template Marketplace，不是 CLI 依赖。
 
+## 内置 Agent Skill
+
+npm package 会随 CLI 一起分发一份很薄、完全自包含的 `team-ai` Agent Skill，source 位于 `skills/team-ai/`。`team-ai init` 和 `team-ai sync` 会将这份 bundled Skill convergence 到：
+
+```text
+~/.copilot/skills/team-ai/
+```
+
+它只帮助 Agent 把 Team AI 相关意图路由到 public CLI，并在需要精确参数时以当前 `--help` 为准；不会读取或依赖任何具体部门 Marketplace 的文件或目录结构。Skill 不维护独立版本，随 CLI package version 一起演进。
+
+ownership 独立记录在 `~/.team-ai/built-in-skills/`。如果 `~/.copilot/skills/team-ai/` 已存在但不属于 Team AI CLI，CLI 会视为 collision 并拒绝 silent overwrite；`doctor` 会报告 missing、stale 或 collision 状态。
+
 ## 环境要求
 
 - Node.js 20+
@@ -83,7 +95,7 @@ Plugin 名称不再编码 kind。CLI 读取统一的 metadata namespace `com.com
 
 ## Logical Project Context 与 Learnings
 
-`team-ai init --project <id>` 支持重复传入或逗号分隔 ID。`team-ai projects list` 读取 catalog；`team-ai projects set <ids...>` 修改当前 Physical Git workspace 的绑定。`init`、`projects set` 和 `sync` 复用同一份具体收敛：Marketplace Plugin package、受管理的用户级 instructions、Physical Repository 中的 Logical Project instructions，以及 Physical Repository 中的 context/learning 文件，分别属于四个 scope。
+`team-ai init` 只配置 User Scope，不绑定 Logical Project。`team-ai projects list` 读取 catalog；`team-ai projects set <ids...>`（支持重复传入或逗号分隔 ID）是修改当前 Physical Git workspace 绑定的唯一命令；`sync` 只按当前 workspace 已保存的绑定重新收敛。收敛分为四个 scope：Marketplace Plugin package 与受管理的用户级 instructions（`init`、`sync`），以及 Physical Repository 中的 Logical Project instructions 与 context/learning 文件（`projects set`、`sync`）。
 
 active Project instruction 文件按原始字节镜像到 `.github/instructions/team-ai/<id>/`；Project docs 与 Project/shared learnings 写入 `.team-ai/context/`。Team AI 只写一个 `applyTo: "**"` 的 `context.instructions.md` pointer，并通过 Git 解析后的 `info/exclude` 仅排除这两个 reserved root。即使目录为空，也不会接管未声明 ownership 的 reserved path，也不会改写 Marketplace source frontmatter。portable 或 path-specific `applyTo` 的匹配仍是后续验证事项；当前不宣称 runtime instruction injection。
 
@@ -152,7 +164,7 @@ config schema 固定为 `version: 1`，唯一的 Marketplace source 字段为 `m
 ## 命令
 
 ```text
-team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design]
 team-ai projects [list]
 team-ai projects set <ids...>
 team-ai learning share <file> [--project <id>|--shared] [--tags <tag...>]
@@ -278,4 +290,3 @@ npm test
 - [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)：当前 frozen delta 的实施计划与完成状态。
 - [`docs/HANDOFF.md`](docs/HANDOFF.md)：当前实现状态与验证证据。
 - [`docs/VERSIONING.md`](docs/VERSIONING.md)：CLI、Marketplace 与 Plugin 的版本规则。
-- [`docs/codex-first-review.md`](docs/codex-first-review.md)：实现审查发现与处置状态。

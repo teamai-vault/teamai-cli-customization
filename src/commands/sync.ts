@@ -1,4 +1,5 @@
 import { readGlobalConfig, writeGlobalConfig } from "../config/global.js";
+import { convergeBuiltInTeamAiSkill } from "../copilot/builtin-skill.js";
 import { convergeUserPlugins, type PlannedAction } from "../copilot/plugins.js";
 import { effectiveEnabledPluginSpecs, convergeManagedSkills } from "../copilot/skills.js";
 import type { InstalledPlugin } from "../copilot/cli.js";
@@ -16,6 +17,10 @@ export async function syncCommand(context: CommandContext): Promise<void> {
   const originalConfig = JSON.stringify(config);
   let persistedConfig = originalConfig;
 
+  const builtInSkill = await convergeBuiltInTeamAiSkill(context.homeDir, { dryRun: context.dryRun });
+  if (builtInSkill.change) {
+    context.out((context.dryRun ? "WOULD" : "DONE") + " " + builtInSkill.change + ": ~/.copilot/skills/team-ai");
+  }
   const catalog = await context.loadMarketplace(config.marketplace.source, context.cwd, { refresh: true });
   if (catalog.name !== config.marketplace.name) {
     await catalog.dispose();

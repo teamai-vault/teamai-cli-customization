@@ -10,7 +10,9 @@ import { fileURLToPath } from "node:url";
 
 const exec = promisify(execFile);
 const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const marketplaceRoot = path.resolve(cliRoot, "..", "teamai-marketplace");
+const marketplaceRoot = process.env.TEAM_AI_E2E_MARKETPLACE_ROOT
+  ? path.resolve(process.env.TEAM_AI_E2E_MARKETPLACE_ROOT)
+  : path.resolve(cliRoot, "..", "teamai-marketplace");
 let runRoot;
 let repository;
 let env;
@@ -77,7 +79,8 @@ try {
   await run("git", ["commit", "-m", "initial"]);
 
   const cli = path.join(cliRoot, "dist", "cli.js");
-  await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api", "--project", "teamai"]);
+  await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api"]);
+  await run(process.execPath, [cli, "projects", "set", "teamai"]);
   await run(process.execPath, [cli, "skill", "install", "release-helper"]);
   await run(process.execPath, [cli, "role", "set", "qa"]);
   await run(process.execPath, [cli, "sync"]);
@@ -106,6 +109,7 @@ try {
   assert.equal(contextInstructions.length, 2, "Native Copilot should list both working-directory context instructions.");
 
   const skills = JSON.parse((await runCopilot(["skill", "list", "--json"])).stdout);
+  assertSkillPath(skills, "team-ai", path.join(copilotHome, "skills", "team-ai"), "personal-copilot", "Built-in Team AI Skill");
   assertSkillPath(skills, "release-helper", path.join(copilotHome, "skills", "release-helper"), "personal-copilot", "Managed personal Skill");
   const pluginSkillPath = path.join(marketplaceRoot, "plugins", "common", "skills", "code-review");
   const pluginSkill = enabledPluginSkill(skills, "code-review", pluginSkillPath);
