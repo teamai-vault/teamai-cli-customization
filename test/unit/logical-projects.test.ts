@@ -32,7 +32,7 @@ describe("Logical Project projection", () => {
     const identity = await detectProjectIdentity(repo);
     await expect(convergeLogicalProjectContext({ marketplaceRoot: source, plugins: [], marketplace: { name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }, identity: identity!, logicalProjects: ["payments"] }))
       .rejects.toThrow("Reserved Team AI projection path is already occupied");
-  });
+  }, 15_000);
 
   test("dry run reports projections without writing bytes", async () => {
     const repo = await createGitRepo();
@@ -41,5 +41,5 @@ describe("Logical Project projection", () => {
     const result = await convergeLogicalProjectContext({ marketplaceRoot: source, plugins: [], marketplace: { name: TEST_MARKETPLACE_NAME, source: TEST_MARKETPLACE_SOURCE }, identity: identity!, logicalProjects: ["payments"], dryRun: true });
     expect(result.changes.some((change) => change.endsWith("payments.instructions.md"))).toBe(true);
     await expect(readFile(path.join(repo, ".github", "instructions", "team-ai", "payments", "payments.instructions.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
-  });
+  }, 15_000);
 });

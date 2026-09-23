@@ -88,7 +88,9 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
 
   try {
     if (args.includes("--product") || args.some((arg) => arg.startsWith("--product="))) {
-      throw new Error("--product has been removed. Use --project <id>.");
+      throw new Error(args[0] === "init"
+        ? "--product has been removed.\nUse `team-ai projects set <ids...>` inside the target Git repository."
+        : "--product has been removed. Use --project <id>.");
     }
     if (args[0] === "init" && args.some((arg) => arg === "--project" || arg.startsWith("--project="))) {
       throw new Error("--project is not supported by init.\nUse `team-ai projects set <ids...>` inside the target Git repository.");

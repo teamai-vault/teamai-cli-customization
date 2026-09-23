@@ -51,7 +51,7 @@ describe("CLI integration with fake Copilot executable", () => {
     const repo = await createGitRepo();
     const output = capture();
     expect(await runCli(["init", "--product=payments"], { cwd: repo, out: output.out, err: output.err })).toBe(1);
-    expect(output.stderr).toContain("ERROR: --product has been removed. Use --project <id>.");
+    expect(output.stderr.join("\n")).toContain("ERROR: --product has been removed.\nUse `team-ai projects set <ids...>` inside the target Git repository.");
   }, CLI_PROCESS_TEST_TIMEOUT);
 
   test("init converges instructions when Copilot and VS Code backends are unavailable", async () => {
