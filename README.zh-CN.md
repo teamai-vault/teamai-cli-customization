@@ -290,4 +290,3 @@ npm test
 - [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md)：当前 frozen delta 的实施计划与完成状态。
 - [`docs/HANDOFF.md`](docs/HANDOFF.md)：当前实现状态与验证证据。
 - [`docs/VERSIONING.md`](docs/VERSIONING.md)：CLI、Marketplace 与 Plugin 的版本规则。
-- [`docs/codex-first-review.md`](docs/codex-first-review.md)：实现审查发现与处置状态。

@@ -290,4 +290,3 @@ This project does not implement a default Marketplace, multiple-Marketplace merg
 - [`docs/IMPLEMENTATION-PLAN.md`](docs/IMPLEMENTATION-PLAN.md) — current frozen-delta implementation plan and status.
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — current implementation state and validation evidence.
 - [`docs/VERSIONING.md`](docs/VERSIONING.md) — CLI, Marketplace, and Plugin release/version rules.
-- [`docs/codex-first-review.md`](docs/codex-first-review.md) — implementation review findings and dispositions.

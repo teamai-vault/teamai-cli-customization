@@ -1,6 +1,6 @@
 # Team AI CLI — V3 handoff
 
-The authoritative V3 architecture and ordered work ledger are [`v3/team-ai-next-architecture-final-v3.md`](v3/team-ai-next-architecture-final-v3.md), [`v3/team-ai-next-implementation-plan-v3.md`](v3/team-ai-next-implementation-plan-v3.md), and [`v3/EXECUTION.md`](v3/EXECUTION.md).
+The authoritative V3 architecture and ordered work ledger are [`v3/team-ai-next-architecture-final-v3.md`](v3/team-ai-next-architecture-final-v3.md) and [`v3/team-ai-next-implementation-plan-v3.md`](v3/team-ai-next-implementation-plan-v3.md).
 
 The CLI keeps native Copilot Marketplace and Agent Plugin behavior. User scope installs `common` and all `role` plugins, enables `common` plus one selected role, and records ownership in `config.managedPlugins`.
 
@@ -34,10 +34,8 @@ The Marketplace repository is unchanged by the built-in Skill follow-up; its ear
 
 Phases 1–16 (including 2.5) are implemented and accepted within the verification limits below. Phase17 Learning promotion and Phase18 LLM Wiki remain deferred by V3. All maintained instruction examples use `applyTo: "**"`; general path/glob support is a recorded later TODO.
 
-Native E2E verifies projection and discovery, personal Skill install/remove, and Plugin Skill preservation. Local Marketplace Plugin Skills point to their source directories; direct-install Plugin probes used installed copies. Fallback uses the real VS Code CLI at `D:/soft/Microsoft VS Code/bin/code.cmd`, materializes native filesystem state, and verifies real Copilot recognition. This does not verify VS Code extension discovery.
+Native E2E verifies projection and discovery, personal Skill install/remove, and Plugin Skill preservation. Local Marketplace Plugin Skills point to their source directories; direct-install Plugin probes used installed copies. Fallback uses the real VS Code CLI, materializes native filesystem state, and verifies real Copilot recognition. This does not verify VS Code extension discovery.
 
 Not verified: authenticated model reading of ignored docs (existing classic PAT rejected by Copilot), actual `applyTo` injection, runtime Plugin Rule execution, macOS, or external GitHub contribution PR creation. Contribution integration uses real local Git worktrees/branches/push with mocked `gh`; it is not external E2E. Plugin-target Skill contribution was checked through dry-run/source review, while the standalone target exercised local push.
 
 Initial integration timeouts were caused by concurrent subprocess load and short command-chain budgets. Test files now run sequentially with a 60-second command-chain budget; no production deadlock was demonstrated. The one Windows skip covers POSIX permission semantics.
-
-The V3 baseline was delivered on `feat/team-ai-v3-cli` and `feat/team-ai-v3-marketplace` in `F:/agent-workspace/codex/repos/team-ai-v3/`. This built-in Skill follow-up is currently on `feat/builtin-team-ai-skill` in an isolated worktree and remains uncommitted/unpushed at this handoff. Main is not modified or merged. See `v3/EXECUTION.md` for the earlier V3 delivery details.
