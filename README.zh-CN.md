@@ -95,7 +95,7 @@ Plugin 名称不再编码 kind。CLI 读取统一的 metadata namespace `com.com
 
 ## Logical Project Context 与 Learnings
 
-`team-ai init --project <id>` 支持重复传入或逗号分隔 ID。`team-ai projects list` 读取 catalog；`team-ai projects set <ids...>` 修改当前 Physical Git workspace 的绑定。`init`、`projects set` 和 `sync` 复用同一份具体收敛：Marketplace Plugin package、受管理的用户级 instructions、Physical Repository 中的 Logical Project instructions，以及 Physical Repository 中的 context/learning 文件，分别属于四个 scope。
+`team-ai init` 只配置 User Scope，不绑定 Logical Project。`team-ai projects list` 读取 catalog；`team-ai projects set <ids...>`（支持重复传入或逗号分隔 ID）是修改当前 Physical Git workspace 绑定的唯一命令；`sync` 只按当前 workspace 已保存的绑定重新收敛。收敛分为四个 scope：Marketplace Plugin package 与受管理的用户级 instructions（`init`、`sync`），以及 Physical Repository 中的 Logical Project instructions 与 context/learning 文件（`projects set`、`sync`）。
 
 active Project instruction 文件按原始字节镜像到 `.github/instructions/team-ai/<id>/`；Project docs 与 Project/shared learnings 写入 `.team-ai/context/`。Team AI 只写一个 `applyTo: "**"` 的 `context.instructions.md` pointer，并通过 Git 解析后的 `info/exclude` 仅排除这两个 reserved root。即使目录为空，也不会接管未声明 ownership 的 reserved path，也不会改写 Marketplace source frontmatter。portable 或 path-specific `applyTo` 的匹配仍是后续验证事项；当前不宣称 runtime instruction injection。
 
@@ -164,7 +164,7 @@ config schema 固定为 `version: 1`，唯一的 Marketplace source 字段为 `m
 ## 命令
 
 ```text
-team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]
+team-ai init [--marketplace <source>] [--role api|ios|aos|qa|design]
 team-ai projects [list]
 team-ai projects set <ids...>
 team-ai learning share <file> [--project <id>|--shared] [--tags <tag...>]

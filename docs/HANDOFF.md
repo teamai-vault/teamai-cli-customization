@@ -6,9 +6,9 @@ The CLI keeps native Copilot Marketplace and Agent Plugin behavior. User scope i
 
 The CLI package also owns one self-contained built-in Agent Skill at `skills/team-ai/`. It is not Marketplace content and has no runtime dependency on a department Marketplace. `init` and `sync` converge it to `~/.copilot/skills/team-ai/`; ownership/version metadata lives under `~/.team-ai/built-in-skills/`, and an unowned pre-existing target is a hard collision. `doctor` diagnoses the built-in Skill read-only. The Skill is intentionally thin: it maps user intent to public `team-ai` commands and treats current CLI `--help` as the syntax source of truth.
 
-Logical Project is the only business-context entity. A Marketplace may publish `manifest/projects.yaml`; a Physical Project is a real Git workspace. `team-ai init --project <id>` and `team-ai projects set <ids...>` bind contexts to that workspace. An optional `kind: project` Plugin is enabled through repository settings only when the manifest requests it and Team AI explicitly owns that setting.
+Logical Project is the only business-context entity. A Marketplace may publish `manifest/projects.yaml`; a Physical Project is a real Git workspace. `team-ai init` is user-scope only; `team-ai projects set <ids...>` is the only command that binds contexts to that workspace, and `sync` re-converges the saved binding of the current workspace. An optional `kind: project` Plugin is enabled through repository settings only when the manifest requests it and Team AI explicitly owns that setting.
 
-Project context convergence is shared by `init`, `projects set`, and `sync`. It mirrors active project instructions to `.github/instructions/team-ai/<id>/`, docs and shared/project learnings to `.team-ai/context/`, writes a thin pointer instruction, preserves source bytes and `applyTo`, rejects unowned reserved paths, and excludes only those paths through Git-resolved `info/exclude`.
+Project context convergence is shared by `projects set` and `sync`. It mirrors active project instructions to `.github/instructions/team-ai/<id>/`, docs and shared/project learnings to `.team-ai/context/`, writes a thin pointer instruction, preserves source bytes and `applyTo`, rejects unowned reserved paths, and excludes only those paths through Git-resolved `info/exclude`.
 
 Current implementation:
 

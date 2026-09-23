@@ -20,7 +20,7 @@ function usage(): string {
     "team-ai <command> [options]",
     "",
     "Commands:",
-    "  init [--marketplace <source>] [--role api|ios|aos|qa|design] [--project <id>]",
+    "  init [--marketplace <source>] [--role api|ios|aos|qa|design]",
     "  projects [list|set <ids...>]",
     "  learning share <file> [--project <id>|--shared] [--tags <tag...>]",
     "  sync",
@@ -90,17 +90,16 @@ export async function runCli(argv: string[], overrides: Partial<CommandContext> 
     if (args.includes("--product") || args.some((arg) => arg.startsWith("--product="))) {
       throw new Error("--product has been removed. Use --project <id>.");
     }
+    if (args[0] === "init" && args.some((arg) => arg === "--project" || arg.startsWith("--project="))) {
+      throw new Error("--project is not supported by init.\nUse `team-ai projects set <ids...>` inside the target Git repository.");
+    }
     await resolveCopilotBackend(context);
     switch (args[0]) {
       case "init":
-        {
-          const projects = optionValues(args, "--project");
         await initCommand(context, {
           marketplace: optionValue(args, "--marketplace"),
           role: optionValue(args, "--role"),
-          projects: projects.length > 0 ? projects : undefined,
         });
-        }
         return 0;
       case "sync":
         await syncCommand(context);

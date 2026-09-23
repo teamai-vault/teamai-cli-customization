@@ -94,7 +94,7 @@ describe("built-in Team AI Skill", () => {
     expect(contents).not.toContain("manifest/projects.yaml");
     expect(contents).not.toContain("skills.yaml");
     expect(contents).toContain("**Physical Project** - the current Git repository/workspace.");
-    expect(contents).toContain("Initialize Team AI -> `team-ai init`");
+    expect(contents).toContain("Initialize Team AI for the user -> `team-ai init` (user scope only)");
     expect(contents).not.toContain("â");
   });
 });

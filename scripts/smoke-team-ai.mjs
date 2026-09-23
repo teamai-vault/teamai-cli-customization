@@ -79,7 +79,8 @@ try {
   await run("git", ["commit", "-m", "initial"]);
 
   const cli = path.join(cliRoot, "dist", "cli.js");
-  await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api", "--project", "teamai"]);
+  await run(process.execPath, [cli, "init", "--marketplace", marketplaceRoot, "--role", "api"]);
+  await run(process.execPath, [cli, "projects", "set", "teamai"]);
   await run(process.execPath, [cli, "skill", "install", "release-helper"]);
   await run(process.execPath, [cli, "role", "set", "qa"]);
   await run(process.execPath, [cli, "sync"]);

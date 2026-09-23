@@ -4,10 +4,10 @@ Use this as an intent map, not as a cached CLI manual. Run `team-ai <command> --
 
 | Command | Use it for |
 | --- | --- |
-| `team-ai init` | First-time setup: configure the team source, role, and optional Logical Project binding. |
+| `team-ai init` | First-time user setup: configure the team source and role. It never binds Logical Projects. |
 | `team-ai sync` | Refresh and converge Team AI-managed state. |
 | `team-ai role list` / `role set` | Inspect or change the selected Role. |
-| `team-ai projects list` / `projects set` | Discover or bind Logical Projects for the current Physical Project. |
+| `team-ai projects list` / `projects set` | Discover Logical Projects, or bind the current Physical Project (the only binding command). |
 | `team-ai skill list` / `skill show` | Discover Team Skills and inspect their metadata/source. |
 | `team-ai skill install` / `skill remove` | Manage personal Team Skills. The CLI decides whether a Plugin-contained Skill can be installed independently. |
 | `team-ai skill contribute` | Contribute a Skill through the supported Team AI contribution workflow. |

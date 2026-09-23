@@ -163,7 +163,7 @@ After building the CLI, run:
 npm run test:e2e:copilot
 ```
 
-`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api --project teamai`, installs the real standalone `release-helper` Skill, switches to `qa`, runs `sync`, `status`, and `doctor`, then verifies projected Logical Project instruction bytes plus native instruction name/scope/source listing, and exact personal-Skill and enabled Plugin-Skill paths. It removes the personal Skill and confirms the Plugin Skill remains discoverable before deleting temporary state in `finally`.
+`smoke-team-ai.mjs` creates an isolated temporary Copilot profile and Git repository, runs `team-ai init --marketplace <sibling-marketplace-path> --role api` and `team-ai projects set teamai`, installs the real standalone `release-helper` Skill, switches to `qa`, runs `sync`, `status`, and `doctor`, then verifies projected Logical Project instruction bytes plus native instruction name/scope/source listing, and exact personal-Skill and enabled Plugin-Skill paths. It removes the personal Skill and confirms the Plugin Skill remains discoverable before deleting temporary state in `finally`.
 
 ## VS Code-only fallback E2E
 

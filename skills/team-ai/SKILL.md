@@ -20,10 +20,10 @@ Use the public `team-ai` CLI as the control surface. Translate the user's intent
 
 ## Route intent through the CLI
 
-- Initialize Team AI -> `team-ai init`
+- Initialize Team AI for the user -> `team-ai init` (user scope only)
 - Refresh/converge Team AI state -> `team-ai sync`
 - Inspect or change role -> `team-ai role ...`
-- Inspect or bind Logical Projects -> `team-ai projects ...`
+- Inspect or bind Logical Projects for the current repository -> `team-ai projects ...`
 - Discover/install/remove Team Skills -> `team-ai skill ...`
 - Browse Skill tags -> `team-ai tags ...`
 - Share team experience -> `team-ai learning share ...`

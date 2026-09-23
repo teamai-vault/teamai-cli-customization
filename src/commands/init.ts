@@ -5,18 +5,12 @@ import { normalizeMarketplaceSource, resolveMarketplaceConfig } from "../copilot
 import { convergeUserPlugins, enabledUserPlugins } from "../copilot/plugins.js";
 import { convergeMarketplaceUserInstructions } from "../copilot/user-instructions.js";
 import { registerVsCodeMarketplace } from "../copilot/vscode-settings.js";
-import { detectProjectIdentity } from "../project/anchors.js";
-import { convergeLogicalProjectContext, projectionFor, withProjection } from "../project/context.js";
-import { parseLogicalProjectIds } from "../project/manifest.js";
-import { partitionPath } from "../project/partition.js";
-import { readProjectState, writeProjectState } from "../project/state.js";
 import type { CommandContext } from "./context.js";
 import { printActions, printUserInstructionActions, printWarnings } from "./helpers.js";
 
 export interface InitOptions {
   marketplace?: string;
   role?: string;
-  projects?: string[];
 }
 
 export async function initCommand(context: CommandContext, options: InitOptions): Promise<void> {
@@ -74,11 +68,6 @@ export async function initCommand(context: CommandContext, options: InitOptions)
     if (catalog.revision) config.marketplaceRevision = catalog.revision;
     else delete config.marketplaceRevision;
 
-    const identity = await detectProjectIdentity(context.cwd);
-    if (options.projects?.length && !identity) throw new Error("--project requires running team-ai init inside a Git repository.");
-    const priorState = identity ? await readProjectState(identity.projectAnchor, context.homeDir) : undefined;
-    const logicalProjects = options.projects ? parseLogicalProjectIds(options.projects) : projectionFor(priorState, identity?.workspaceRoot ?? "")?.logicalProjects ?? [];
-
     let converged;
     try {
       converged = await convergeUserPlugins(context.copilot, config, catalog.plugins, {
@@ -103,28 +92,8 @@ export async function initCommand(context: CommandContext, options: InitOptions)
       context.out(`${context.dryRun ? "WOULD" : "DONE"} write: VS Code User Settings chat.plugins.marketplaces`);
     }
 
-    if (identity) {
-      const baseState = { ...(priorState ?? { schemaVersion: 1 as const, workspaceRoot: identity.workspaceRoot, managedPlugins: [] }), lastSync: context.now().toISOString(), managedPlugins: converged.managedPlugins };
-      const projectContext = await convergeLogicalProjectContext({ marketplaceRoot: catalog.root, plugins: catalog.plugins, marketplace: config.marketplace, identity, state: priorState, logicalProjects, dryRun: context.dryRun });
-      for (const change of projectContext.changes) context.out(`${context.dryRun ? "WOULD" : "DONE"} write: ${change}`);
-      for (const warning of projectContext.warnings) context.out(`! ${warning}`);
-      context.out(`Project root: ${identity.workspaceRoot}`);
-      context.out(`Project anchor: ${identity.projectAnchor}`);
-      context.out(`Machine partition: ${partitionPath(identity.projectAnchor, context.homeDir)}`);
-      if (!context.dryRun) {
-        await writeProjectState(identity.projectAnchor, withProjection(baseState, projectContext.projection), context.homeDir);
-      } else {
-        context.out("WOULD write: project machine state");
-      }
-    }
-
     if (!context.dryRun) await writeGlobalConfig(config, context.homeDir);
     else context.out("WOULD write: ~/.team-ai/config.yaml");
-
-    if (identity) {
-      context.out("Project-specific skills, agents, instructions, and hooks remain in this repository under .github/*.");
-      context.out("If .github/copilot-instructions.md is missing, use the native `copilot init` command to generate it.");
-    }
   } finally {
     await catalog.dispose();
   }

@@ -221,7 +221,9 @@ team-ai projects set
 }
 ```
 
-首次 `init` 同时支持直接绑定 Logical Project：
+> 后续修订：`init --project` 已移除。`init` 只负责 User Scope；`team-ai projects set <ids...>` 是唯一 Logical Project binding 入口；`init --project` 会直接报错。
+
+~~首次 `init` 同时支持直接绑定 Logical Project：~~（原设计，已废弃）
 
 ```text
 team-ai init --marketplace <source> --role api --project payments
