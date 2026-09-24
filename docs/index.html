@@ -112,6 +112,21 @@ nav .btn{height:34px;padding:0 12px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .legend .a{background:var(--accent)}
 .legend .b{background:var(--line-strong)}
+.tree li.opt{background:transparent;outline:1px dashed var(--accent-line);outline-offset:-1px}
+.legend .c{border:1px dashed var(--accent)}
+
+/* glossary: two groups mirroring the hero diagram */
+.gloss{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.gset{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:24px 26px}
+.gset h3{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--muted);font-weight:550;margin-bottom:6px}
+.gset h3 i{color:var(--accent)}
+.gset dl{margin:0}
+.gset dl div{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr);gap:16px;padding:14px 0;border-top:1px solid var(--line)}
+.gset dl div:first-child{border-top:0}
+.gset dt{font-family:var(--mono);font-size:14px;font-weight:500}
+.gset dt small{display:block;font-family:var(--sans);font-size:12px;color:var(--faint);font-weight:400;margin-top:2px}
+.gset dd{margin:0;color:var(--muted);font-size:14px}
+.gset dd code{font-size:12.5px;color:var(--text)}
 
 /* roles */
 .roles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:center}
@@ -181,7 +196,7 @@ footer a{color:var(--muted);text-decoration:none}
 footer a:hover{color:var(--text)}
 
 @media (max-width:900px){
-  .hero,.roles,.health,.trees,.two{grid-template-columns:minmax(0,1fr)}
+  .hero,.roles,.health,.trees,.two,.gloss{grid-template-columns:minmax(0,1fr)}
   .hero{gap:48px;padding:56px 0 64px}
   .row{grid-template-columns:minmax(0,1fr);gap:6px}
   .step{grid-template-columns:minmax(0,1fr);gap:18px}
@@ -198,6 +213,8 @@ footer a:hover{color:var(--text)}
   nav .btn{margin-left:auto}
   .wrap{padding:0 16px}
   .skl td:nth-child(3){display:none}
+  .gset{padding:20px}
+  .gset dl div{grid-template-columns:minmax(0,1fr);gap:4px}
 }
 </style>
 </head>
@@ -207,6 +224,7 @@ footer a:hover{color:var(--text)}
   <div class="wrap">
     <a class="brand" href="#top"><i class="ph ph-terminal-window"></i>team-ai</a>
     <div class="links">
+      <a href="#terms">术语</a>
       <a href="#model">概念</a>
       <a href="#start">上手</a>
       <a href="#files">文件</a>
@@ -249,6 +267,35 @@ footer a:hover{color:var(--text)}
       </div>
     </div>
   </header>
+
+  <section id="terms">
+    <div class="head">
+      <h2>先认识几个词。</h2>
+      <p class="lede">分两组记：跟人走的装到你的机器，跟业务走的装到 Repo。</p>
+    </div>
+    <div class="gloss">
+      <div class="gset">
+        <h3><i class="ph ph-desktop"></i>跟人走 · 你的机器</h3>
+        <dl>
+          <div><dt>Marketplace<small>部门仓库</small></dt><dd>一个 Git 仓库，部门共同维护。Plugins、Skills、Instructions、业务 Context 都放在这里，改动走 PR。</dd></div>
+          <div><dt>Plugin<small>Agent Plugin</small></dt><dd>Copilot 的扩展包，可以打包 Skills、Agents、MCP Servers 和 Hooks。按用途分 <code>common</code>、<code>role</code>、<code>project</code> 三类。</dd></div>
+          <div><dt>Role<small>你的岗位</small></dt><dd><code>api</code>、<code>ios</code>、<code>aos</code>、<code>qa</code>、<code>design</code> 之一。决定启用哪个 role Plugin。</dd></div>
+          <div><dt>Skill<small>按需加载的能力</small></dt><dd>一个 <code>SKILL.md</code> 目录。Copilot 遇到相关任务时才读取。可以随 Plugin 提供，也可以单独安装。</dd></div>
+          <div><dt>Instructions<small>常驻规则</small></dt><dd><code>*.instructions.md</code> 文件，Copilot 按 <code>applyTo</code> 自动带进对话。部门级的镜像到 <code>~/.copilot/instructions/team-ai/</code>。</dd></div>
+        </dl>
+      </div>
+      <div class="gset">
+        <h3><i class="ph ph-folder-simple"></i>跟业务走 · 当前 Repo</h3>
+        <dl>
+          <div><dt>Logical Project<small>业务项目</small></dt><dd>业务意义上的项目，比如 <code>payments</code>，在 Marketplace 的 <code>manifest/projects.yaml</code> 里声明。一个业务可以横跨多个 Repo。</dd></div>
+          <div><dt>Physical Project<small>本地 Repo</small></dt><dd>你本地的一个 Git 工作区。用 <code>projects set</code> 绑定到一个或多个 Logical Project。</dd></div>
+          <div><dt>Context<small>业务上下文</small></dt><dd>某个 Logical Project 的 Instructions 和文档。绑定后写入 Repo，Copilot 在这个 Repo 里就懂这块业务。</dd></div>
+          <div><dt>Learning<small>团队经验</small></dt><dd>一篇排障或踩坑记录，按 Logical Project 或 <code>shared</code> 归档。用 <code>learning share</code> 提交回 Marketplace。</dd></div>
+          <div><dt>Project Plugin<small>可选</small></dt><dd>只有业务需要自己的 Skills 或 MCP 时才有。Marketplace 在 <code>projects.yaml</code> 里用 <code>plugin:</code> 声明，绑定时自动在 Repo 的 <code>.github/copilot/settings.json</code> 启用，不需要手动开关。</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
 
   <section id="model">
     <div class="head">
@@ -346,14 +393,14 @@ Managed user instructions are already converged (2).</pre>
           <li>payment-service/</li>
           <li class="own i1">.github/instructions/team-ai/<span>业务 Instructions</span></li>
           <li class="own i1">.team-ai/context/<span>Docs 与 Learnings</span></li>
-          <li class="own i1">.github/copilot/settings.json<span>只写 Project Plugin 开关</span></li>
+          <li class="own opt i1">.github/copilot/settings.json<span>可选，见 <a href="#terms">Project Plugin</a></span></li>
           <li class="no i1">.github/copilot-instructions.md<span>你自己的</span></li>
           <li class="no i1">src/<span>你自己的</span></li>
           <li class="own">.git/info/exclude<span>前两个目录不进提交</span></li>
         </ol>
       </div>
     </div>
-    <div class="legend"><span><i class="a"></i>team-ai 管理</span><span><i class="b"></i>不会触碰</span></div>
+    <div class="legend"><span><i class="a"></i>team-ai 管理</span><span><i class="c"></i>按需出现</span><span><i class="b"></i>不会触碰</span></div>
   </section>
 
   <section id="roles">
